@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Trinidad Wiseman — Human-in-the-Loop AI</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet"/>
+<style>
+/* ── TWN DESIGN TOKENS ─────────────────────────────── */
+:root {
+  --bg:           #0F1C32;
+  --surface:      #1A2B4A;
+  --surface2:     #1E3356;
+  --surface3:     #243D68;
+  --border:       rgba(255,255,255,0.08);
+  --border2:      rgba(255,255,255,0.14);
+  --coral:        #E8452A;
+  --coral-light:  #FF6347;
+  --coral-dark:   #C73520;
+  --teal:         #1AA39A;
+  --teal-light:   #22C4BA;
+  --amber:        #F0A500;
+  --green:        #18A474;
+  --green-light:  #1DC98D;
+  --red:          #D93025;
+  --red-light:    #E8523A;
+  --purple:       #8B6CF7;
+  --text:         #FFFFFF;
+  --text-muted:   #8A9BBB;
+  --text-dim:     #C8D3E5;
+  --nav-bg:       #0A1525;
+  --shadow:       0 8px 32px rgba(0,0,0,0.4);
+  --shadow-sm:    0 4px 16px rgba(0,0,0,0.25);
+}
+
+/* ── RESET & BASE ──────────────────────────────────── */
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;}
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:99px}
+::-webkit-scrollbar-thumb:hover{background:var(--coral)}
+
+/* ── ANIMATIONS ────────────────────────────────────── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes popIn{from{opacity:0;transform:scale(0.85)}to{opacity:1;transform:scale(1)}}
+@keyframes drawLine{to{stroke-dashoffset:0}}
+@keyframes slideToast{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulseDot{0%,100%{opacity:1}50%{opacity:0.4}}
+.anim-fade-up{animation:fadeUp .4s ease both}
+.d1{animation-delay:.05s}.d2{animation-delay:.1s}.d3{animation-delay:.15s}.d4{animation-delay:.2s}
+
+/* ── NAV ───────────────────────────────────────────── */
+nav{
+  background:var(--nav-bg);
+  padding:0 32px;
+  display:flex;align-items:center;height:64px;
+  position:sticky;top:0;z-index:100;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  box-shadow:0 2px 20px rgba(0,0,0,0.4);
+}
+.nav-logo{
+  width:36px;height:36px;
+  background:linear-gradient(135deg,var(--coral),var(--coral-dark));
+  border-radius:10px;display:flex;align-items:center;justify-content:center;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:#fff;
+  margin-right:12px;flex-shrink:0;
+  box-shadow:0 4px 14px rgba(232,69,42,0.4);
+}
+.nav-brand{display:flex;align-items:center;margin-right:auto;}
+.nav-brand-name{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#fff;line-height:1.2;}
+.nav-brand-sub{font-size:11px;color:var(--teal-light);}
+.nav-tabs{display:flex;gap:4px;}
+.nav-tab{
+  display:flex;align-items:center;gap:7px;
+  padding:8px 18px;border-radius:10px;
+  font-size:14px;font-weight:500;
+  color:rgba(255,255,255,.5);
+  cursor:pointer;border:none;background:transparent;
+  transition:all .2s;font-family:'DM Sans',sans-serif;
+  text-decoration:none;
+}
+.nav-tab:hover{color:#fff;background:rgba(255,255,255,.07);}
+.nav-tab.active{
+  background:linear-gradient(135deg,var(--coral),var(--coral-dark));
+  color:#fff;box-shadow:0 0 18px rgba(232,69,42,.4);
+}
+.nav-tab svg{width:15px;height:15px;flex-shrink:0;}
+.theme-btn{
+  margin-left:16px;width:36px;height:36px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);
+  border-radius:10px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .2s;color:#fff;font-size:16px;flex-shrink:0;
+}
+.theme-btn:hover{background:rgba(255,255,255,.15);transform:scale(1.05);}
+
+/* ── LAYOUT ────────────────────────────────────────── */
+main{padding:36px 32px;max-width:1400px;margin:0 auto;}
+.page{display:none;}
+.page.active{display:block;animation:fadeUp .35s ease;}
+.page-header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:28px;}
+.page-title{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;letter-spacing:-.5px;}
+.page-sub{font-size:13px;color:var(--text-muted);margin-top:3px;}
+
+/* ── CARD ──────────────────────────────────────────── */
+.card{
+  background:var(--surface);border-radius:20px;
+  border:1px solid var(--border);box-shadow:var(--shadow);padding:24px;
+}
+.card-hover{transition:transform .22s cubic-bezier(.34,1.56,.64,1),box-shadow .22s;}
+.card-hover:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,.5);}
+
+/* ── BUTTONS ───────────────────────────────────────── */
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 18px;border-radius:11px;font-size:13px;font-weight:600;
+  cursor:pointer;border:none;font-family:'DM Sans',sans-serif;transition:all .2s;
+}
+.btn-primary{background:linear-gradient(135deg,var(--coral),var(--coral-dark));color:#fff;box-shadow:0 4px 14px rgba(232,69,42,.35);}
+.btn-primary:hover{filter:brightness(1.1);transform:translateY(-1px);}
+.btn-ghost{background:rgba(255,255,255,.07);color:var(--text-dim);border:1px solid var(--border2);}
+.btn-ghost:hover{background:rgba(255,255,255,.12);color:#fff;}
+.btn-danger{background:rgba(217,48,37,.12);color:var(--red-light);border:1px solid rgba(217,48,37,.3);}
+.btn-danger:hover{background:rgba(217,48,37,.22);}
+.btn-success{background:rgba(24,164,116,.12);color:var(--green-light);border:1px solid rgba(24,164,116,.3);}
+.btn-success:hover{background:rgba(24,164,116,.22);}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:9px;}
+
+/* ── BADGES ────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge-coral{background:rgba(232,69,42,.15);color:var(--coral-light);border:1px solid rgba(232,69,42,.3);}
+.badge-teal{background:rgba(26,163,154,.15);color:var(--teal-light);border:1px solid rgba(26,163,154,.3);}
+.badge-green{background:rgba(24,164,116,.15);color:var(--green-light);border:1px solid rgba(24,164,116,.3);}
+.badge-amber{background:rgba(240,165,0,.15);color:var(--amber);border:1px solid rgba(240,165,0,.3);}
+.badge-red{background:rgba(217,48,37,.15);color:var(--red-light);border:1px solid rgba(217,48,37,.3);}
+.badge-purple{background:rgba(139,108,247,.15);color:var(--purple);border:1px solid rgba(139,108,247,.3);}
+.badge-gray{background:rgba(255,255,255,.07);color:var(--text-muted);border:1px solid var(--border2);}
+
+/* ── TOGGLE ────────────────────────────────────────── */
+.toggle{width:44px;height:24px;border-radius:99px;position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;border:none;}
+.toggle.on{background:linear-gradient(135deg,var(--coral),var(--coral-dark));}
+.toggle.off{background:var(--surface3);border:1px solid var(--border2);}
+.toggle-knob{position:absolute;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.3);}
+.toggle.on .toggle-knob{left:23px;}
+.toggle.off .toggle-knob{left:3px;}
+
+/* ── SECTION TITLE ─────────────────────────────────── */
+.section-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+
+/* ── STAT CARDS ────────────────────────────────────── */
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-bottom:24px;}
+.stat-card{border-radius:20px;padding:26px;position:relative;overflow:hidden;cursor:pointer;}
+.stat-card::before{content:'';position:absolute;top:-40px;right:-40px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.06);}
+.stat-card::after{content:'';position:absolute;bottom:-20px;right:20px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.04);}
+.stat-icon{width:46px;height:46px;background:rgba(255,255,255,.18);border-radius:13px;display:flex;align-items:center;justify-content:center;margin-bottom:20px;}
+.stat-icon svg{width:22px;height:22px;color:#fff;}
+.stat-badge{position:absolute;top:16px;right:16px;background:rgba(255,255,255,.22);backdrop-filter:blur(10px);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:600;color:#fff;}
+.stat-number{font-family:'Syne',sans-serif;font-size:50px;font-weight:800;color:#fff;line-height:1;margin-bottom:6px;letter-spacing:-2px;}
+.stat-label{font-size:14px;font-weight:500;color:rgba(255,255,255,.85);margin-bottom:3px;}
+.stat-sub{font-size:12px;color:rgba(255,255,255,.6);}
+
+/* ── CHART SVG ─────────────────────────────────────── */
+.grid-line{stroke:rgba(255,255,255,.07);stroke-width:1;stroke-dasharray:4 4;}
+.axis-lbl{fill:var(--text-muted);font-size:11px;font-family:'DM Sans',sans-serif;}
+.chart-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:2000;stroke-dashoffset:2000;animation:drawLine 1.8s cubic-bezier(.4,0,.2,1) .4s forwards;}
+.chart-dot{opacity:0;animation:popIn .3s cubic-bezier(.34,1.56,.64,1) forwards;}
+
+/* ── TABLES ────────────────────────────────────────── */
+.data-table{width:100%;border-collapse:collapse;}
+.data-table th{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);}
+.data-table td{padding:13px 16px;font-size:13px;color:var(--text-dim);border-bottom:1px solid var(--border);}
+.data-table tr:last-child td{border-bottom:none;}
+.data-table tr:hover td{background:rgba(255,255,255,.02);}
+.user-info{display:flex;align-items:center;gap:10px;}
+.avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0;}
+.perf-bar-wrap{display:flex;align-items:center;gap:8px;}
+.perf-bar{height:5px;background:var(--surface3);border-radius:99px;width:70px;overflow:hidden;display:inline-block;}
+.perf-fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--coral-dark),var(--coral));display:block;}
+
+/* ── REVIEW ────────────────────────────────────────── */
+.review-layout{display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start;}
+.queue-item{padding:14px 16px;background:var(--surface2);border-radius:14px;border:1px solid transparent;cursor:pointer;transition:all .18s;text-align:left;width:100%;font-family:'DM Sans',sans-serif;}
+.queue-item:hover{border-color:var(--border2);background:var(--surface3);}
+.queue-item.selected{border-color:rgba(232,69,42,.5);background:rgba(232,69,42,.08);}
+.queue-item.done{opacity:.45;pointer-events:none;}
+.entity-block{background:var(--surface2);border-radius:16px;padding:18px;}
+.entity-title{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;}
+.entity-field{margin-bottom:11px;}
+.entity-field-lbl{font-size:11px;color:var(--text-muted);margin-bottom:2px;}
+.entity-field-val{font-size:14px;font-weight:500;}
+.vs-divider{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding-top:44px;}
+.vs-circle{width:40px;height:40px;border-radius:50%;background:var(--surface3);border:2px solid var(--border2);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;color:var(--text-muted);}
+.conf-bar-bg{height:7px;background:var(--surface2);border-radius:99px;overflow:hidden;margin-bottom:8px;}
+.conf-bar-fill{height:100%;border-radius:99px;transition:width .8s cubic-bezier(.4,0,.2,1);}
+.reviewer-select{background:var(--surface3);border:1px solid var(--border2);border-radius:10px;padding:8px 12px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;outline:none;}
+
+/* ── ANALYTICS ─────────────────────────────────────── */
+.kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:20px;}
+.matrix-cell{padding:16px 12px;border-radius:12px;text-align:center;}
+.matrix-val{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;line-height:1;}
+.matrix-name{font-size:10px;color:var(--text-muted);margin-top:4px;}
+.score-row{display:flex;gap:20px;margin-top:18px;padding-top:16px;border-top:1px solid var(--border);}
+
+/* ── MANAGEMENT ────────────────────────────────────── */
+.mgmt-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+.role-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--surface2);border-radius:14px;border:1px solid var(--border);margin-bottom:10px;}
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border);}
+.setting-row:last-child{border-bottom:none;}
+.activity-item{display:flex;align-items:flex-start;gap:14px;padding:14px 0;border-bottom:1px solid var(--border);}
+.activity-item:last-child{border-bottom:none;}
+.activity-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;}
+.dot-online{background:var(--teal-light);box-shadow:0 0 6px rgba(34,196,186,.5);animation:pulseDot 2s infinite;}
+.dot-away{background:var(--amber);}
+.dot-offline{background:var(--text-muted);}
+
+/* ── TOAST ─────────────────────────────────────────── */
+.toast{position:fixed;bottom:32px;right:32px;padding:12px 22px;border-radius:12px;color:#fff;font-size:14px;font-weight:600;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.45);animation:slideToast .3s ease;pointer-events:none;}
+
+/* ── PIE (CSS) ─────────────────────────────────────── */
+.pie-legend-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-radius:12px;margin-bottom:10px;transition:transform .2s;cursor:default;}
+.pie-legend-item:hover{transform:translateX(4px);}
+
+/* ── EXPORT BTNS ───────────────────────────────────── */
+.export-btn{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--surface2);border:1px solid var(--border2);border-radius:12px;color:var(--text-dim);font-size:13px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;}
+.export-btn:hover{background:var(--surface3);color:#fff;border-color:rgba(232,69,42,.4);}
+
+@media(max-width:960px){
+  .stat-grid{grid-template-columns:1fr 1fr;}
+  .review-layout,.mgmt-grid,.kpi-row{grid-template-columns:1fr;}
+  .bottom-grid{grid-template-columns:1fr!important;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ NAV ══════════════════════════════════════════ -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">TW</div>
+    <div>
+      <div class="nav-brand-name">Trinidad Wiseman</div>
+      <div class="nav-brand-sub">Human-in-the-Loop AI</div>
+    </div>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="goTo('admin',this)">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Admin
+    </button>
+    <button class="nav-tab" onclick="goTo('review',this)">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>Review
+    </button>
+    <button class="nav-tab" onclick="goTo('analytics',this)">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>Analytics
+    </button>
+    <button class="nav-tab" onclick="goTo('management',this)">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>Management
+    </button>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">🌙</button>
+</nav>
+
+<main>
+
+<!-- ══ ADMIN ══════════════════════════════════════════ -->
+<div id="page-admin" class="page active">
+  <div class="page-header">
+    <div><div class="page-title">Admin Dashboard</div><div class="page-sub">High-level overview of system performance and reviewer activity</div></div>
+    <button class="btn btn-primary" onclick="goTo('review',document.querySelectorAll('.nav-tab')[1])">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      Go to Review Queue
+    </button>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card card-hover anim-fade-up d1" style="background:linear-gradient(135deg,#1A2B4A,#0F1C32);box-shadow:0 8px 30px rgba(15,28,50,.7)">
+      <div class="stat-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+      <div class="stat-number">45</div><div class="stat-label">Total Reviewed</div><div class="stat-sub">of 200 records</div>
+    </div>
+    <div class="stat-card card-hover anim-fade-up d2" style="background:linear-gradient(135deg,#1AA39A,#0e7a74);box-shadow:0 8px 30px rgba(26,163,154,.35)">
+      <div class="stat-badge">71%</div>
+      <div class="stat-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+      <div class="stat-number">32</div><div class="stat-label">Confirmed Matches</div><div class="stat-sub">verified by reviewers</div>
+    </div>
+    <div class="stat-card card-hover anim-fade-up d3" style="background:linear-gradient(135deg,#E8452A,#C73520);box-shadow:0 8px 30px rgba(232,69,42,.35)">
+      <div class="stat-badge">18%</div>
+      <div class="stat-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div>
+      <div class="stat-number">8</div><div class="stat-label">Rejected Matches</div><div class="stat-sub">flagged for retraining</div>
+    </div>
+    <div class="stat-card card-hover anim-fade-up d4" style="background:linear-gradient(135deg,#F0A500,#c47f00);box-shadow:0 8px 30px rgba(240,165,0,.35)">
+      <div class="stat-icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+      <div class="stat-number">5</div><div class="stat-label">Needs Review</div><div class="stat-sub">awaiting decision</div>
+    </div>
+  </div>
+
+  <div class="bottom-grid" style="display:grid;grid-template-columns:1fr 390px;gap:20px;">
+    <!-- Line chart -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;">
+        <div><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Model Performance Trends</div><div style="font-size:13px;color:var(--text-muted);margin-top:3px;">Precision &amp; Recall over time</div></div>
+        <span style="background:rgba(26,163,154,.15);border:1px solid rgba(26,163,154,.3);color:var(--teal-light);font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;">↗ Improving</span>
+      </div>
+      <svg style="width:100%;overflow:visible;" viewBox="0 0 700 230" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="ag1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#E8452A" stop-opacity=".18"/><stop offset="100%" stop-color="#E8452A" stop-opacity="0"/></linearGradient>
+          <linearGradient id="ag2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#22C4BA" stop-opacity=".14"/><stop offset="100%" stop-color="#22C4BA" stop-opacity="0"/></linearGradient>
+        </defs>
+        <line class="grid-line" x1="50" y1="10" x2="680" y2="10"/><line class="grid-line" x1="50" y1="52" x2="680" y2="52"/><line class="grid-line" x1="50" y1="94" x2="680" y2="94"/><line class="grid-line" x1="50" y1="136" x2="680" y2="136"/><line class="grid-line" x1="50" y1="178" x2="680" y2="178"/>
+        <text class="axis-lbl" x="44" y="14" text-anchor="end">1.0</text><text class="axis-lbl" x="44" y="56" text-anchor="end">.93</text><text class="axis-lbl" x="44" y="98" text-anchor="end">.86</text><text class="axis-lbl" x="44" y="140" text-anchor="end">.79</text><text class="axis-lbl" x="44" y="182" text-anchor="end">.72</text>
+        <path style="opacity:0;animation:popIn .5s ease 2s forwards;" d="M50,136 L130,124 L210,115 L290,103 L370,94 L450,85 L530,75 L610,68 L680,60 L680,178 L50,178 Z" fill="url(#ag1)"/>
+        <path style="opacity:0;animation:popIn .5s ease 2.1s forwards;" d="M50,153 L130,144 L210,138 L290,130 L370,123 L450,117 L530,110 L610,105 L680,100 L680,178 L50,178 Z" fill="url(#ag2)"/>
+        <polyline class="chart-line" stroke="#E8452A" points="50,136 130,124 210,115 290,103 370,94 450,85 530,75 610,68 680,60"/>
+        <polyline class="chart-line" stroke="#22C4BA" points="50,153 130,144 210,138 290,130 370,123 450,117 530,110 610,105 680,100" style="animation-delay:.3s"/>
+        <circle class="chart-dot" cx="50"  cy="136" r="4.5" fill="#E8452A" stroke="#0F1C32" stroke-width="2" style="animation-delay:.6s"/>
+        <circle class="chart-dot" cx="130" cy="124" r="4.5" fill="#E8452A" stroke="#0F1C32" stroke-width="2" style="animation-delay:.8s"/>
+        <circle class="chart-dot" cx="210" cy="115" r="4.5" fill="#E8452A" stroke="#0F1C32" stroke-width="2" style="animation-delay:1s"/>
+        <circle class="chart-dot" cx="290" cy="103" r="4.5" fill="#E8452A" stroke="#0F1C32" stroke-width="2" style="animation-delay:1.2s"/>
+        <circle class="chart-dot" cx="370" cy="94"  r="4.5" fill="#E8452A" stroke="#0F1C32" stroke-width="2" style="animation-delay:1.4s"/>
+        <circle class="chart-dot" cx="450" cy="85"  r="4.5" fill="#E8452A" stroke="#0F1C32" stroke-width="2" style="animation-delay:1.6s"/>
+        <circle class="chart-dot" cx="530" cy="75"  r="4.5" fill="#E8452A" stroke="#0F1C32" stroke-width="2" style="animation-delay:1.8s"/>
+        <circle class="chart-dot" cx="610" cy="68"  r="4.5" fill="#E8452A" stroke="#0F1C32" stroke-width="2" style="animation-delay:2s"/>
+        <circle class="chart-dot" cx="50"  cy="153" r="4.5" fill="#22C4BA" stroke="#0F1C32" stroke-width="2" style="animation-delay:.9s"/>
+        <circle class="chart-dot" cx="130" cy="144" r="4.5" fill="#22C4BA" stroke="#0F1C32" stroke-width="2" style="animation-delay:1.1s"/>
+        <circle class="chart-dot" cx="210" cy="138" r="4.5" fill="#22C4BA" stroke="#0F1C32" stroke-width="2" style="animation-delay:1.3s"/>
+        <circle class="chart-dot" cx="290" cy="130" r="4.5" fill="#22C4BA" stroke="#0F1C32" stroke-width="2" style="animation-delay:1.5s"/>
+        <circle class="chart-dot" cx="370" cy="123" r="4.5" fill="#22C4BA" stroke="#0F1C32" stroke-width="2" style="animation-delay:1.7s"/>
+        <circle class="chart-dot" cx="450" cy="117" r="4.5" fill="#22C4BA" stroke="#0F1C32" stroke-width="2" style="animation-delay:1.9s"/>
+        <circle class="chart-dot" cx="530" cy="110" r="4.5" fill="#22C4BA" stroke="#0F1C32" stroke-width="2" style="animation-delay:2.1s"/>
+        <circle class="chart-dot" cx="610" cy="105" r="4.5" fill="#22C4BA" stroke="#0F1C32" stroke-width="2" style="animation-delay:2.3s"/>
+        <text class="axis-lbl" x="50"  y="210" text-anchor="middle">Oct 27</text><text class="axis-lbl" x="130" y="210" text-anchor="middle">Oct 28</text><text class="axis-lbl" x="210" y="210" text-anchor="middle">Oct 29</text><text class="axis-lbl" x="290" y="210" text-anchor="middle">Oct 30</text><text class="axis-lbl" x="370" y="210" text-anchor="middle">Oct 31</text><text class="axis-lbl" x="450" y="210" text-anchor="middle">Nov 01</text><text class="axis-lbl" x="530" y="210" text-anchor="middle">Nov 02</text><text class="axis-lbl" x="610" y="210" text-anchor="middle">Nov 03</text>
+      </svg>
+      <div style="display:flex;gap:20px;margin-top:12px;">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim);"><div style="width:10px;height:10px;border-radius:50%;background:#E8452A"></div>Precision</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim);"><div style="width:10px;height:10px;border-radius:50%;background:#22C4BA"></div>Recall</div>
+      </div>
+    </div>
+
+    <!-- Donut chart -->
+    <div class="card">
+      <div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:4px;">Status Distribution</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;">Breakdown of all reviews</div>
+      <div style="display:flex;justify-content:center;margin-bottom:20px;">
+        <svg viewBox="0 0 180 180" width="170" height="170">
+          <circle cx="90" cy="90" r="64" fill="none" stroke="#1AA39A" stroke-width="32" stroke-dasharray="284.3 113.7" stroke-dashoffset="0" transform="rotate(-90 90 90)"/>
+          <circle cx="90" cy="90" r="64" fill="none" stroke="#E8452A" stroke-width="32" stroke-dasharray="72.1 325.9" stroke-dashoffset="-284.3" transform="rotate(-90 90 90)"/>
+          <circle cx="90" cy="90" r="64" fill="none" stroke="#F0A500" stroke-width="32" stroke-dasharray="44.1 353.9" stroke-dashoffset="-356.4" transform="rotate(-90 90 90)"/>
+          <text x="90" y="85" text-anchor="middle" fill="#8A9BBB" font-size="11" font-family="DM Sans">Total</text>
+          <text x="90" y="103" text-anchor="middle" fill="#fff" font-size="22" font-family="Syne" font-weight="800">45</text>
+        </svg>
+      </div>
+      <div class="pie-legend-item"><div style="display:flex;align-items:center;gap:10px;"><div style="width:11px;height:11px;border-radius:50%;background:#1AA39A;flex-shrink:0;"></div><span style="font-size:13px;color:var(--text-dim);">Confirmed</span></div><span style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--teal-light);">71%</span></div>
+      <div class="pie-legend-item"><div style="display:flex;align-items:center;gap:10px;"><div style="width:11px;height:11px;border-radius:50%;background:#E8452A;flex-shrink:0;"></div><span style="font-size:13px;color:var(--text-dim);">Rejected</span></div><span style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--coral-light);">18%</span></div>
+      <div class="pie-legend-item" style="margin-bottom:0;"><div style="display:flex;align-items:center;gap:10px;"><div style="width:11px;height:11px;border-radius:50%;background:#F0A500;flex-shrink:0;"></div><span style="font-size:13px;color:var(--text-dim);">Needs Review</span></div><span style="font-family:'Syne',sans-serif;font-size:14px;font-weight:700;color:var(--amber);">11%</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ REVIEW ══════════════════════════════════════════ -->
+<div id="page-review" class="page">
+  <div class="page-header">
+    <div><div class="page-title">Review Queue</div><div class="page-sub" id="queue-sub">5 matches awaiting human decision</div></div>
+    <div style="display:flex;gap:8px;"><span class="badge badge-amber" id="pending-count">⏳ 5 Pending</span><span class="badge badge-teal">↻ Auto-assigned</span></div>
+  </div>
+  <div class="review-layout">
+    <!-- Queue list -->
+    <div class="card" style="padding:16px;">
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;">Pending Matches</div>
+      <div style="display:flex;flex-direction:column;gap:8px;" id="queue-list">
+        <button class="queue-item selected" onclick="selectItem(this,0)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;">RQ-001</span><span class="badge badge-coral" style="font-size:10px;">92%</span></div>
+          <div style="font-size:12px;color:var(--text-muted);">Acme Corp ↔ ACME Corporation</div>
+        </button>
+        <button class="queue-item" onclick="selectItem(this,1)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;">RQ-002</span><span class="badge badge-amber" style="font-size:10px;">78%</span></div>
+          <div style="font-size:12px;color:var(--text-muted);">John M. Smith ↔ J. Michael Smith</div>
+        </button>
+        <button class="queue-item" onclick="selectItem(this,2)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;">RQ-003</span><span class="badge badge-red" style="font-size:10px;">61%</span></div>
+          <div style="font-size:12px;color:var(--text-muted);">TW Solutions Ltd ↔ Trinidad Wiseman OÜ</div>
+        </button>
+        <button class="queue-item" onclick="selectItem(this,3)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;">RQ-004</span><span class="badge badge-coral" style="font-size:10px;">85%</span></div>
+          <div style="font-size:12px;color:var(--text-muted);">Maria Kask ↔ M. Kask</div>
+        </button>
+        <button class="queue-item" onclick="selectItem(this,4)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><span style="font-family:'Syne',sans-serif;font-size:13px;font-weight:700;">RQ-005</span><span class="badge badge-amber" style="font-size:10px;">70%</span></div>
+          <div style="font-size:12px;color:var(--text-muted);">Global Tech Inc ↔ Global Technologies</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Comparison panel -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <!-- Confidence card -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;">
+          <div><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;" id="cmp-title">RQ-001 — Entity Comparison</div><div style="font-size:13px;color:var(--text-muted);margin-top:3px;">AI confidence score</div></div>
+          <span id="conf-badge" class="badge badge-coral">High Confidence</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:8px;"><span>Match confidence</span><span id="conf-pct" style="font-weight:700;color:var(--coral-light);">92%</span></div>
+        <div class="conf-bar-bg"><div class="conf-bar-fill" id="conf-bar" style="width:92%;background:linear-gradient(90deg,var(--coral-dark),var(--coral));"></div></div>
+        <div style="margin-top:10px;" id="conf-badge-wrap"><span class="badge badge-coral">High Confidence</span></div>
+      </div>
+
+      <!-- Entity comparison -->
+      <div class="card">
+        <div style="display:grid;grid-template-columns:1fr 50px 1fr;gap:16px;align-items:start;" id="entity-compare">
+          <div class="entity-block">
+            <div class="entity-title">🔵 Entity A</div>
+            <div id="ea-fields"></div>
+          </div>
+          <div class="vs-divider"><div style="width:1px;height:30px;background:var(--border2);"></div><div class="vs-circle">VS</div><div style="width:1px;height:30px;background:var(--border2);"></div></div>
+          <div class="entity-block">
+            <div class="entity-title">🟠 Entity B</div>
+            <div id="eb-fields"></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--teal-light);"><div style="width:8px;height:8px;border-radius:50%;background:var(--teal-light);"></div>Fields match</div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--red-light);"><div style="width:8px;height:8px;border-radius:50%;background:var(--red-light);"></div>Fields differ</div>
+        </div>
+      </div>
+
+      <!-- Action bar -->
+      <div class="card" style="padding:20px;">
+        <div style="display:flex;align-items:center;gap:16px;">
+          <div style="flex:1;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Assign reviewer</div>
+            <select class="reviewer-select" id="reviewer-select">
+              <option>Liis Tamm</option><option>Mart Kaljurand</option><option>Anna Lepp</option><option>Karl Mägi</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:10px;">
+            <button class="btn btn-ghost" onclick="skipItem()">↷ Skip</button>
+            <button class="btn btn-danger" onclick="rejectItem()">✕ Reject</button>
+            <button class="btn btn-success" onclick="confirmItem()">✓ Confirm Match</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ANALYTICS ══════════════════════════════════════ -->
+<div id="page-analytics" class="page">
+  <div class="page-header">
+    <div><div class="page-title">Analytics</div><div class="page-sub">Model performance and reviewer insights</div></div>
+    <div style="display:flex;gap:8px;">
+      <button class="export-btn">📄 Export CSV</button>
+      <button class="export-btn">📊 Export PDF</button>
+      <button class="export-btn">🔗 Share</button>
+    </div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="card anim-fade-up d1"><div style="font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:10px;">Overall Precision</div><div style="font-family:'Syne',sans-serif;font-size:34px;font-weight:800;color:var(--coral);letter-spacing:-1px;">87.4%</div><div style="display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(26,163,154,.15);color:var(--teal-light);">↑ +2.1% this week</div></div>
+    <div class="card anim-fade-up d2"><div style="font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:10px;">Overall Recall</div><div style="font-family:'Syne',sans-serif;font-size:34px;font-weight:800;color:var(--teal-light);letter-spacing:-1px;">81.9%</div><div style="display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(26,163,154,.15);color:var(--teal-light);">↑ +1.3% this week</div></div>
+    <div class="card anim-fade-up d3"><div style="font-size:12px;font-weight:500;color:var(--text-muted);margin-bottom:10px;">Avg Review Time</div><div style="font-family:'Syne',sans-serif;font-size:34px;font-weight:800;color:var(--amber);letter-spacing:-1px;">2.4<span style="font-size:18px;"> min</span></div><div style="display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600;background:rgba(232,69,42,.12);color:var(--coral-light);">↓ −0.3 min vs last week</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+    <!-- Reviewer table -->
+    <div class="card">
+      <div class="section-title">Reviewer Performance</div>
+      <table class="data-table">
+        <thead><tr><th>Reviewer</th><th>Reviewed</th><th>Accuracy</th><th>Time</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="user-info"><div class="avatar" style="width:30px;height:30px;background:linear-gradient(135deg,#E8452A,#C73520);">LT</div>Liis Tamm</div></td>
+            <td>124</td><td><div class="perf-bar-wrap"><div class="perf-bar"><span class="perf-fill" style="width:94%"></span></div><span style="font-size:12px;font-weight:600;color:var(--coral-light);">94%</span></div></td>
+            <td>1.8 min</td><td><span class="badge badge-teal">Active</span></td>
+          </tr>
+          <tr>
+            <td><div class="user-info"><div class="avatar" style="width:30px;height:30px;background:linear-gradient(135deg,#8B6CF7,#6d48f5);">MK</div>Mart Kaljurand</div></td>
+            <td>98</td><td><div class="perf-bar-wrap"><div class="perf-bar"><span class="perf-fill" style="width:88%"></span></div><span style="font-size:12px;font-weight:600;color:var(--coral-light);">88%</span></div></td>
+            <td>2.6 min</td><td><span class="badge badge-teal">Active</span></td>
+          </tr>
+          <tr>
+            <td><div class="user-info"><div class="avatar" style="width:30px;height:30px;background:linear-gradient(135deg,#1AA39A,#0e7a74);">AL</div>Anna Lepp</div></td>
+            <td>76</td><td><div class="perf-bar-wrap"><div class="perf-bar"><span class="perf-fill" style="width:79%;background:linear-gradient(90deg,#c47f00,#F0A500)"></span></div><span style="font-size:12px;font-weight:600;color:var(--amber);">79%</span></div></td>
+            <td>3.1 min</td><td><span class="badge badge-amber">Away</span></td>
+          </tr>
+          <tr>
+            <td><div class="user-info"><div class="avatar" style="width:30px;height:30px;background:linear-gradient(135deg,#F0A500,#c47f00);">KM</div>Karl Mägi</div></td>
+            <td>54</td><td><div class="perf-bar-wrap"><div class="perf-bar"><span class="perf-fill" style="width:91%"></span></div><span style="font-size:12px;font-weight:600;color:var(--coral-light);">91%</span></div></td>
+            <td>2.2 min</td><td><span class="badge badge-gray">Offline</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Confusion matrix -->
+    <div class="card">
+      <div class="section-title">Confusion Matrix <span style="font-size:12px;font-weight:400;color:var(--text-muted);">Last 200 records</span></div>
+      <div style="display:grid;grid-template-columns:60px 1fr 1fr;gap:6px;align-items:center;">
+        <div></div><div style="text-align:center;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;padding:6px;">Predicted +</div><div style="text-align:center;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;padding:6px;">Predicted −</div>
+        <div style="text-align:center;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;">Actual +</div>
+        <div class="matrix-cell" style="background:rgba(26,163,154,.18);border:1px solid rgba(26,163,154,.3);"><div class="matrix-val" style="color:var(--teal-light);">142</div><div class="matrix-name">True Positive</div></div>
+        <div class="matrix-cell" style="background:rgba(240,165,0,.13);border:1px solid rgba(240,165,0,.25);"><div class="matrix-val" style="color:var(--amber);">18</div><div class="matrix-name">False Negative</div></div>
+        <div style="text-align:center;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;">Actual −</div>
+        <div class="matrix-cell" style="background:rgba(232,69,42,.13);border:1px solid rgba(232,69,42,.25);"><div class="matrix-val" style="color:var(--coral-light);">12</div><div class="matrix-name">False Positive</div></div>
+        <div class="matrix-cell" style="background:rgba(26,163,154,.08);border:1px solid rgba(26,163,154,.18);"><div class="matrix-val" style="color:var(--teal-light);">28</div><div class="matrix-name">True Negative</div></div>
+      </div>
+      <div class="score-row">
+        <div><div style="font-size:11px;color:var(--text-muted);">Precision</div><div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--coral);">92.2%</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);">Recall</div><div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--teal-light);">88.7%</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);">F1 Score</div><div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--amber);">90.4%</div></div>
+        <div><div style="font-size:11px;color:var(--text-muted);">Accuracy</div><div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:var(--coral);">85.0%</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full-width model trend -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+      <div><div style="font-family:'Syne',sans-serif;font-size:16px;font-weight:700;">Model Accuracy Over Time</div><div style="font-size:13px;color:var(--text-muted);margin-top:3px;">9-day precision &amp; recall trend</div></div>
+      <span style="background:rgba(232,69,42,.15);border:1px solid rgba(232,69,42,.3);color:var(--coral-light);font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;">↗ Trending up</span>
+    </div>
+    <svg style="width:100%;overflow:visible;" viewBox="0 0 1300 200" xmlns="http://www.w3.org/2000/svg">
+      <line class="grid-line" x1="40" y1="10" x2="1280" y2="10"/><line class="grid-line" x1="40" y1="52" x2="1280" y2="52"/><line class="grid-line" x1="40" y1="94" x2="1280" y2="94"/><line class="grid-line" x1="40" y1="136" x2="1280" y2="136"/><line class="grid-line" x1="40" y1="158" x2="1280" y2="158"/>
+      <polyline class="chart-line" stroke="#E8452A" points="40,136 195,124 350,115 505,103 660,94 815,85 970,75 1125,68 1280,60"/>
+      <polyline class="chart-line" stroke="#22C4BA" points="40,153 195,144 350,138 505,130 660,123 815,117 970,110 1125,105 1280,100" style="animation-delay:.3s"/>
+      <text class="axis-lbl" x="40"   y="178" text-anchor="middle">Oct 27</text><text class="axis-lbl" x="195"  y="178" text-anchor="middle">Oct 28</text><text class="axis-lbl" x="350"  y="178" text-anchor="middle">Oct 29</text><text class="axis-lbl" x="505"  y="178" text-anchor="middle">Oct 30</text><text class="axis-lbl" x="660"  y="178" text-anchor="middle">Oct 31</text><text class="axis-lbl" x="815"  y="178" text-anchor="middle">Nov 01</text><text class="axis-lbl" x="970"  y="178" text-anchor="middle">Nov 02</text><text class="axis-lbl" x="1125" y="178" text-anchor="middle">Nov 03</text><text class="axis-lbl" x="1280" y="178" text-anchor="middle">Nov 04</text>
+    </svg>
+    <div style="display:flex;gap:20px;margin-top:14px;">
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim);"><div style="width:10px;height:10px;border-radius:50%;background:#E8452A"></div>Precision</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim);"><div style="width:10px;height:10px;border-radius:50%;background:#22C4BA"></div>Recall</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MANAGEMENT ══════════════════════════════════════ -->
+<div id="page-management" class="page">
+  <div class="page-header">
+    <div><div class="page-title">Management</div><div class="page-sub">Users, roles, system settings and activity log</div></div>
+    <button class="btn btn-primary"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add User</button>
+  </div>
+
+  <!-- User table full width -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title">Reviewer List <span class="badge badge-teal" style="font-size:11px;">4 users</span></div>
+    <table class="data-table" id="user-table">
+      <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Reviews</th><th>Last Active</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr id="row-r1">
+          <td><div class="user-info"><div class="avatar" style="width:34px;height:34px;background:linear-gradient(135deg,#E8452A,#C73520);font-size:12px;">LT</div><div><div style="font-weight:600;color:#fff;font-size:13px;">Liis Tamm</div><div style="font-size:11px;color:var(--text-muted);">liis.tamm@twn.ee</div></div></div></td>
+          <td><span class="badge badge-purple">Senior Reviewer</span></td>
+          <td><span class="status-dot dot-online"></span><span style="font-size:13px;color:var(--teal-light);">Online</span></td>
+          <td>124</td><td>Just now</td>
+          <td><div style="display:flex;gap:8px;"><button class="btn btn-ghost btn-sm">✏ Edit</button><button class="btn btn-danger btn-sm" onclick="removeUser('r1')">🗑 Remove</button></div></td>
+        </tr>
+        <tr id="row-r2">
+          <td><div class="user-info"><div class="avatar" style="width:34px;height:34px;background:linear-gradient(135deg,#8B6CF7,#6d48f5);font-size:12px;">MK</div><div><div style="font-weight:600;color:#fff;font-size:13px;">Mart Kaljurand</div><div style="font-size:11px;color:var(--text-muted);">mart.k@twn.ee</div></div></div></td>
+          <td><span class="badge badge-teal">Reviewer</span></td>
+          <td><span class="status-dot dot-online"></span><span style="font-size:13px;color:var(--teal-light);">Online</span></td>
+          <td>98</td><td>3 min ago</td>
+          <td><div style="display:flex;gap:8px;"><button class="btn btn-ghost btn-sm">✏ Edit</button><button class="btn btn-danger btn-sm" onclick="removeUser('r2')">🗑 Remove</button></div></td>
+        </tr>
+        <tr id="row-r3">
+          <td><div class="user-info"><div class="avatar" style="width:34px;height:34px;background:linear-gradient(135deg,#1AA39A,#0e7a74);font-size:12px;">AL</div><div><div style="font-weight:600;color:#fff;font-size:13px;">Anna Lepp</div><div style="font-size:11px;color:var(--text-muted);">anna.lepp@twn.ee</div></div></div></td>
+          <td><span class="badge badge-teal">Reviewer</span></td>
+          <td><span class="status-dot dot-away"></span><span style="font-size:13px;color:var(--amber);">Away</span></td>
+          <td>76</td><td>2 hrs ago</td>
+          <td><div style="display:flex;gap:8px;"><button class="btn btn-ghost btn-sm">✏ Edit</button><button class="btn btn-danger btn-sm" onclick="removeUser('r3')">🗑 Remove</button></div></td>
+        </tr>
+        <tr id="row-r4">
+          <td><div class="user-info"><div class="avatar" style="width:34px;height:34px;background:linear-gradient(135deg,#F0A500,#c47f00);font-size:12px;">KM</div><div><div style="font-weight:600;color:#fff;font-size:13px;">Karl Mägi</div><div style="font-size:11px;color:var(--text-muted);">karl.m@twn.ee</div></div></div></td>
+          <td><span class="badge badge-amber">Trainee</span></td>
+          <td><span class="status-dot dot-offline"></span><span style="font-size:13px;color:var(--text-muted);">Offline</span></td>
+          <td>54</td><td>Yesterday</td>
+          <td><div style="display:flex;gap:8px;"><button class="btn btn-ghost btn-sm">✏ Edit</button><button class="btn btn-danger btn-sm" onclick="removeUser('r4')">🗑 Remove</button></div></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mgmt-grid">
+    <!-- Roles -->
+    <div class="card">
+      <div class="section-title">Role Permissions</div>
+      <div class="role-row"><div><div style="font-weight:600;font-size:14px;">Admin</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Full system access</div></div><div style="display:flex;gap:5px;flex-wrap:wrap;"><span class="badge badge-teal">Review</span><span class="badge badge-teal">Analytics</span><span class="badge badge-teal">Manage</span><span class="badge badge-teal">Settings</span></div></div>
+      <div class="role-row"><div><div style="font-weight:600;font-size:14px;">Senior Reviewer</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Review + analytics access</div></div><div style="display:flex;gap:5px;flex-wrap:wrap;"><span class="badge badge-teal">Review</span><span class="badge badge-teal">Analytics</span><span class="badge badge-gray">Manage</span></div></div>
+      <div class="role-row"><div><div style="font-weight:600;font-size:14px;">Reviewer</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Review queue only</div></div><div style="display:flex;gap:5px;"><span class="badge badge-teal">Review</span><span class="badge badge-gray">Analytics</span><span class="badge badge-gray">Manage</span></div></div>
+      <div class="role-row" style="margin-bottom:0;"><div><div style="font-weight:600;font-size:14px;">Trainee</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">View-only, supervised</div></div><div style="display:flex;gap:5px;"><span class="badge badge-amber">View</span><span class="badge badge-gray">Review</span><span class="badge badge-gray">Manage</span></div></div>
+    </div>
+
+    <!-- Settings -->
+    <div class="card">
+      <div class="section-title">System Settings</div>
+      <div class="setting-row"><div><div style="font-size:14px;font-weight:500;">Auto-assign reviews</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Distribute queue evenly to online reviewers</div></div><button class="toggle on" onclick="toggleSetting(this)"><div class="toggle-knob"></div></button></div>
+      <div class="setting-row"><div><div style="font-size:14px;font-weight:500;">AI pre-screening</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Auto-confirm matches above 95% confidence</div></div><button class="toggle on" onclick="toggleSetting(this)"><div class="toggle-knob"></div></button></div>
+      <div class="setting-row"><div><div style="font-size:14px;font-weight:500;">Email notifications</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Notify reviewers on new queue items</div></div><button class="toggle off" onclick="toggleSetting(this)"><div class="toggle-knob"></div></button></div>
+      <div class="setting-row"><div><div style="font-size:14px;font-weight:500;">Model retraining alerts</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Alert admin when rejection rate exceeds 20%</div></div><button class="toggle on" onclick="toggleSetting(this)"><div class="toggle-knob"></div></button></div>
+      <div class="setting-row"><div><div style="font-size:14px;font-weight:500;">Audit logging</div><div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Log all reviewer decisions for compliance</div></div><button class="toggle on" onclick="toggleSetting(this)"><div class="toggle-knob"></div></button></div>
+    </div>
+
+    <!-- Activity log full width -->
+    <div class="card" style="grid-column:1/-1;">
+      <div class="section-title">Activity Log</div>
+      <div class="activity-item"><div class="activity-icon" style="background:rgba(26,163,154,.15);">✓</div><div><div style="font-size:13px;color:var(--text-dim);line-height:1.5;"><strong style="color:#fff;">Liis Tamm</strong> confirmed match <strong style="color:#fff;">RQ-044</strong> — Acme Corp ↔ ACME Corporation</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">2 minutes ago</div></div></div>
+      <div class="activity-item"><div class="activity-icon" style="background:rgba(232,69,42,.15);">✕</div><div><div style="font-size:13px;color:var(--text-dim);line-height:1.5;"><strong style="color:#fff;">Mart Kaljurand</strong> rejected match <strong style="color:#fff;">RQ-043</strong> — TW Solutions ↔ Wiseman OÜ</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">11 minutes ago</div></div></div>
+      <div class="activity-item"><div class="activity-icon" style="background:rgba(139,108,247,.15);">⚙</div><div><div style="font-size:13px;color:var(--text-dim);line-height:1.5;"><strong style="color:#fff;">System</strong> auto-confirmed 3 high-confidence matches above 95%</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">34 minutes ago</div></div></div>
+      <div class="activity-item"><div class="activity-icon" style="background:rgba(240,165,0,.15);">👤</div><div><div style="font-size:13px;color:var(--text-dim);line-height:1.5;"><strong style="color:#fff;">Admin</strong> added new user <strong style="color:#fff;">Karl Mägi</strong> with Trainee role</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">2 hours ago</div></div></div>
+      <div class="activity-item"><div class="activity-icon" style="background:rgba(26,163,154,.15);">↑</div><div><div style="font-size:13px;color:var(--text-dim);line-height:1.5;"><strong style="color:#fff;">System</strong> model retrained — precision improved from 85.1% to 87.4%</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Yesterday, 16:42</div></div></div>
+      <div class="activity-item" style="border-bottom:none;"><div class="activity-icon" style="background:rgba(232,69,42,.15);">⚠</div><div><div style="font-size:13px;color:var(--text-dim);line-height:1.5;"><strong style="color:#fff;">System</strong> rejection rate hit 21% — model retraining alert triggered</div><div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Yesterday, 09:15</div></div></div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- ══ JAVASCRIPT ══════════════════════════════════════ -->
+<script>
+// ── DATA ───────────────────────────────────────────────
+const QUEUE = [
+  { id:'RQ-001', a:'Acme Corp', b:'ACME Corporation', conf:92,
+    fields:[{l:'Name',a:'Acme Corp',b:'ACME Corporation',m:true},{l:'Reg. No.',a:'EE12345678',b:'EE12345678',m:true},{l:'Country',a:'Estonia',b:'Estonia',m:true},{l:'Industry',a:'Technology',b:'Tech & Software',m:false},{l:'Founded',a:'2010',b:'2010',m:true}]},
+  { id:'RQ-002', a:'John M. Smith', b:'J. Michael Smith', conf:78,
+    fields:[{l:'Name',a:'John M. Smith',b:'J. Michael Smith',m:false},{l:'DOB',a:'1985-03-12',b:'1985-03-12',m:true},{l:'Country',a:'Estonia',b:'Estonia',m:true},{l:'ID No.',a:'38503124523',b:'38503124523',m:true},{l:'Email',a:'j.smith@co.ee',b:'john.smith@ee.co',m:false}]},
+  { id:'RQ-003', a:'TW Solutions Ltd', b:'Trinidad Wiseman OÜ', conf:61,
+    fields:[{l:'Name',a:'TW Solutions Ltd',b:'Trinidad Wiseman OÜ',m:false},{l:'Reg. No.',a:'EE87654321',b:'EE12987654',m:false},{l:'Country',a:'UK',b:'Estonia',m:false},{l:'Industry',a:'Consulting',b:'IT Services',m:false},{l:'Founded',a:'2015',b:'2004',m:false}]},
+  { id:'RQ-004', a:'Maria Kask', b:'M. Kask', conf:85,
+    fields:[{l:'Name',a:'Maria Kask',b:'M. Kask',m:false},{l:'DOB',a:'1990-07-22',b:'1990-07-22',m:true},{l:'Country',a:'Estonia',b:'Estonia',m:true},{l:'ID No.',a:'49007224521',b:'49007224521',m:true},{l:'Phone',a:'+372 5123 4567',b:'+3725123 4567',m:true}]},
+  { id:'RQ-005', a:'Global Tech Inc', b:'Global Technologies', conf:70,
+    fields:[{l:'Name',a:'Global Tech Inc',b:'Global Technologies',m:false},{l:'Reg. No.',a:'US44332211',b:'US44332211',m:true},{l:'Country',a:'USA',b:'USA',m:true},{l:'Industry',a:'Technology',b:'Technology',m:true},{l:'Founded',a:'2001',b:'1999',m:false}]},
+]
+let currentIdx = 0
+const doneItems = new Set()
+
+// ── NAVIGATION ──────────────────────────────────────────
+function goTo(page, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'))
+  document.getElementById('page-' + page).classList.add('active')
+  btn.classList.add('active')
+  if (page === 'review') renderItem(currentIdx)
+}
+
+// ── THEME ───────────────────────────────────────────────
+let isLight = false
+function toggleTheme() {
+  isLight = !isLight
+  document.getElementById('themeBtn').textContent = isLight ? '☀️' : '🌙'
+  if (isLight) {
+    document.documentElement.style.setProperty('--bg','#F0F5FA')
+    document.documentElement.style.setProperty('--surface','#FFFFFF')
+    document.documentElement.style.setProperty('--surface2','#EBF2F9')
+    document.documentElement.style.setProperty('--surface3','#DDE8F4')
+    document.documentElement.style.setProperty('--border','rgba(0,0,0,0.08)')
+    document.documentElement.style.setProperty('--border2','rgba(0,0,0,0.14)')
+    document.documentElement.style.setProperty('--text','#0F1C32')
+    document.documentElement.style.setProperty('--text-muted','#5A7A99')
+    document.documentElement.style.setProperty('--text-dim','#3D5A78')
+    document.documentElement.style.setProperty('--nav-bg','#0A1525')
+  } else {
+    document.documentElement.style.setProperty('--bg','#0F1C32')
+    document.documentElement.style.setProperty('--surface','#1A2B4A')
+    document.documentElement.style.setProperty('--surface2','#1E3356')
+    document.documentElement.style.setProperty('--surface3','#243D68')
+    document.documentElement.style.setProperty('--border','rgba(255,255,255,0.08)')
+    document.documentElement.style.setProperty('--border2','rgba(255,255,255,0.14)')
+    document.documentElement.style.setProperty('--text','#FFFFFF')
+    document.documentElement.style.setProperty('--text-muted','#8A9BBB')
+    document.documentElement.style.setProperty('--text-dim','#C8D3E5')
+    document.documentElement.style.setProperty('--nav-bg','#0A1525')
+  }
+}
+
+// ── REVIEW ──────────────────────────────────────────────
+function renderItem(idx) {
+  const item = QUEUE[idx]
+  document.getElementById('cmp-title').textContent = item.id + ' — Entity Comparison'
+  const conf = item.conf
+  document.getElementById('conf-pct').textContent = conf + '%'
+  document.getElementById('conf-bar').style.width = conf + '%'
+  const isHigh = conf >= 85, isMed = conf >= 70
+  const barColor = isHigh ? 'linear-gradient(90deg,var(--coral-dark),var(--coral))' : isMed ? 'linear-gradient(90deg,#c47f00,var(--amber))' : 'linear-gradient(90deg,#a02010,var(--red-light))'
+  const badgeClass = isHigh ? 'badge-coral' : isMed ? 'badge-amber' : 'badge-red'
+  const badgeLabel = isHigh ? 'High Confidence' : isMed ? 'Medium Confidence' : 'Low Confidence'
+  document.getElementById('conf-bar').style.background = barColor
+  document.getElementById('conf-pct').style.color = isHigh ? 'var(--coral-light)' : isMed ? 'var(--amber)' : 'var(--red-light)'
+  document.getElementById('conf-badge-wrap').innerHTML = `<span class="badge ${badgeClass}">${badgeLabel}</span>`
+
+  let eaHtml = '', ebHtml = ''
+  item.fields.forEach(f => {
+    const matchColor = 'var(--teal-light)', diffColorA = 'var(--text)', diffColorB = 'var(--red-light)'
+    eaHtml += `<div class="entity-field"><div class="entity-field-lbl">${f.l}</div><div class="entity-field-val" style="color:${f.m ? matchColor : diffColorA}">${f.a}</div></div>`
+    ebHtml += `<div class="entity-field"><div class="entity-field-lbl">${f.l}</div><div class="entity-field-val" style="color:${f.m ? matchColor : diffColorB}">${f.b}</div></div>`
+  })
+  document.getElementById('ea-fields').innerHTML = eaHtml
+  document.getElementById('eb-fields').innerHTML = ebHtml
+}
+
+function selectItem(el, idx) {
+  if (doneItems.has(idx)) return
+  document.querySelectorAll('.queue-item').forEach(i => i.classList.remove('selected'))
+  el.classList.add('selected')
+  currentIdx = idx
+  renderItem(idx)
+}
+
+function confirmItem() {
+  markDone(currentIdx, '✓ Confirmed', 'var(--green)')
+  showToast('✓ Match confirmed!', 'var(--green)')
+}
+function rejectItem() {
+  markDone(currentIdx, '✕ Rejected', 'var(--red-light)')
+  showToast('✕ Match rejected', 'var(--red-light)')
+}
+function skipItem() {
+  const next = (currentIdx + 1) % QUEUE.length
+  const btn = document.querySelectorAll('.queue-item')[next]
+  selectItem(btn, next)
+  showToast('↷ Skipped to next', 'var(--text-muted)')
+}
+
+function markDone(idx, label, color) {
+  doneItems.add(idx)
+  const btn = document.querySelectorAll('.queue-item')[idx]
+  btn.classList.add('done')
+  btn.innerHTML += `<div style="margin-top:6px;font-size:11px;font-weight:600;color:${color};">${label}</div>`
+  // Update pending count
+  const remaining = QUEUE.length - doneItems.size
+  document.getElementById('pending-count').textContent = `⏳ ${remaining} Pending`
+  document.getElementById('queue-sub').textContent = `${remaining} matches awaiting human decision`
+  // Move to next pending
+  for (let i = 1; i <= QUEUE.length; i++) {
+    const nextIdx = (idx + i) % QUEUE.length
+    if (!doneItems.has(nextIdx)) {
+      const nextBtn = document.querySelectorAll('.queue-item')[nextIdx]
+      selectItem(nextBtn, nextIdx)
+      return
+    }
+  }
+}
+
+// ── MANAGEMENT ──────────────────────────────────────────
+function removeUser(id) {
+  const row = document.getElementById('row-' + id)
+  if (row) { row.style.opacity = '0'; row.style.transition = 'opacity .3s'; setTimeout(() => row.remove(), 300) }
+  showToast('User removed', 'var(--red-light)')
+}
+
+function toggleSetting(btn) {
+  btn.classList.toggle('on')
+  btn.classList.toggle('off')
+}
+
+// ── TOAST ───────────────────────────────────────────────
+function showToast(msg, color) {
+  const existing = document.querySelector('.toast')
+  if (existing) existing.remove()
+  const t = document.createElement('div')
+  t.className = 'toast'
+  t.textContent = msg
+  t.style.background = color === 'var(--text-muted)' ? '#4A5C7A' : color.startsWith('var') ? getComputedStyle(document.documentElement).getPropertyValue(color.slice(4,-1)).trim() : color
+  document.body.appendChild(t)
+  setTimeout(() => { if(t.parentNode) t.remove() }, 2500)
+}
+
+// Init
+renderItem(0)
+</script>
+</body>
+</html>
