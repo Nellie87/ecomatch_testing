@@ -15,6 +15,56 @@ export const REVIEWERS = [
   { id: 'r3', name: 'Amina Noor' },
 ]
 
+export const ROLE_PERMISSIONS = [
+  {
+    role: 'Admin',
+    desc: 'Full access to users, settings, analytics, and review controls',
+    perms: ['Review', 'Analytics', 'Manage', 'Settings'],
+  },
+  {
+    role: 'Senior Reviewer',
+    desc: 'Can review, inspect analytics, and supervise queue decisions',
+    perms: ['Review', 'Analytics'],
+  },
+  {
+    role: 'Reviewer',
+    desc: 'Can process assigned candidate groups and review suggestions',
+    perms: ['Review'],
+  },
+  {
+    role: 'Trainee',
+    desc: 'Limited review participation under supervision',
+    perms: ['Review'],
+  },
+]
+
+export const ACTIVITY_LOG = [
+  {
+    id: 'a1',
+    type: 'confirm',
+    text: '<b>Helen Bender</b> confirmed group GRP-1001 with registry as golden source.',
+    time: '5 minutes ago',
+  },
+  {
+    id: 'a2',
+    type: 'reject',
+    text: '<b>Marcus Voss</b> rejected group GRP-1002 due to VAT mismatch.',
+    time: '18 minutes ago',
+  },
+  {
+    id: 'a3',
+    type: 'system',
+    text: 'Auto-assignment redistributed 8 pending groups across active reviewers.',
+    time: '35 minutes ago',
+  },
+  {
+    id: 'a4',
+    type: 'retrain',
+    text: 'Model precision threshold updated after retraining pipeline completed.',
+    time: '1 hour ago',
+  },
+]
+
 export const MATCH_GROUPS: MatchCandidateGroup[] = [
   {
     id: 'GRP-1001',
