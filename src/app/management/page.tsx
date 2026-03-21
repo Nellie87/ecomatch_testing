@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { Plus, Edit2, Trash2 } from 'lucide-react'
 import { Card, Badge, Button, Toggle, Avatar, SectionTitle } from '@/components/ui'
-import { REVIEWERS, ROLE_PERMISSIONS, ACTIVITY_LOG, type Reviewer } from '@/lib/data'
+import { REVIEWERS, ROLE_PERMISSIONS, ACTIVITY_LOG, type Reviewer } from '@/lib/review-data'
 
 const ACTIVITY_ICONS: Record<string, { icon: string; bg: string }> = {
   confirm: { icon:'✓', bg:'rgba(26,163,154,0.15)' },

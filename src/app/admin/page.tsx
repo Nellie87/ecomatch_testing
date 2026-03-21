@@ -26,7 +26,7 @@ import {
   Pie,
   Cell,
 } from 'recharts'
-import { TREND_DATA, QUEUE_ITEMS } from '@/lib/data'
+import { TREND_DATA, QUEUE_ITEMS } from '@/lib/review-data'
 
 const PIE_DATA = [
   { name: 'Confirmed', value: 71, color: 'var(--success)' },

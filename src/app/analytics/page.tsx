@@ -1,7 +1,7 @@
 'use client'
 import { Download, Share2, FileText } from 'lucide-react'
 import { Card, Badge, Avatar, SectionTitle } from '@/components/ui'
-import { TREND_DATA, REVIEWERS } from '@/lib/data'
+import { TREND_DATA, REVIEWERS } from '@/lib/review-data'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer
