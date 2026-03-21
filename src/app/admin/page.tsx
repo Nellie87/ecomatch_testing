@@ -38,7 +38,7 @@ const TREND_DATA = [
 ]
 
 const REVIEWER_WORKLOAD = [
-  { name: 'Helen Bender', assigned: 12, completedToday: 8, avgTime: '2m 14s' },
+  { name: 'Elen Axis', assigned: 12, completedToday: 8, avgTime: '2m 14s' },
   { name: 'Marcus Voss', assigned: 9, completedToday: 7, avgTime: '2m 48s' },
   { name: 'Amina Noor', assigned: 14, completedToday: 10, avgTime: '1m 56s' },
 ]

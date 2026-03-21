@@ -10,7 +10,7 @@ export const rejectionReasons = [
 ]
 
 export const REVIEWERS = [
-  { id: 'r1', name: 'Helen Bender' },
+  { id: 'r1', name: 'Elen Axis' },
   { id: 'r2', name: 'Marcus Voss' },
   { id: 'r3', name: 'Amina Noor' },
 ]
@@ -42,7 +42,7 @@ export const ACTIVITY_LOG = [
   {
     id: 'a1',
     type: 'confirm',
-    text: '<b>Helen Bender</b> confirmed group GRP-1001 with registry as golden source.',
+    text: '<b>Elen Axis</b> confirmed group GRP-1001 with registry as golden source.',
     time: '5 minutes ago',
   },
   {
@@ -70,7 +70,7 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
     id: 'GRP-1001',
     confidence: 0.93,
     status: 'suggested',
-    assignee: 'Helen Bender',
+    assignee: 'Elen Axis',
     reasons: [
       { text: 'Exact VAT match', score: 1, strength: 'strong' },
       { text: 'Business name highly similar', score: 0.91, strength: 'strong' },

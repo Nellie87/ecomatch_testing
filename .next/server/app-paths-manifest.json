@@ -1,6 +1,6 @@
 {
-  "/review/page": "app/review/page.js",
-  "/management/page": "app/management/page.js",
   "/admin/page": "app/admin/page.js",
+  "/management/page": "app/management/page.js",
+  "/review/page": "app/review/page.js",
   "/analytics/page": "app/analytics/page.js"
 }

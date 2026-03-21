@@ -123,7 +123,7 @@ export function TopNav() {
             }}
           >
             <UserCircle2 size={18} />
-            <span className="hidden text-sm md:inline">Helen Bender</span>
+            <span className="hidden text-sm md:inline">Elen Axis</span>
             <ChevronDown size={14} />
           </button>
         </div>
