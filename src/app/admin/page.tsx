@@ -26,12 +26,15 @@ import {
   Pie,
   Cell,
 } from 'recharts'
-import { TREND_DATA, QUEUE_ITEMS } from '@/lib/review-data'
+import { MATCH_GROUPS } from '@/lib/review-data'
 
-const PIE_DATA = [
-  { name: 'Confirmed', value: 71, color: 'var(--success)' },
-  { name: 'Rejected', value: 18, color: 'var(--danger)' },
-  { name: 'Pending', value: 11, color: 'var(--warning)' },
+const TREND_DATA = [
+  { date: 'Mon', precision: 0.82, recall: 0.76 },
+  { date: 'Tue', precision: 0.84, recall: 0.79 },
+  { date: 'Wed', precision: 0.86, recall: 0.81 },
+  { date: 'Thu', precision: 0.88, recall: 0.84 },
+  { date: 'Fri', precision: 0.9, recall: 0.86 },
+  { date: 'Sat', precision: 0.91, recall: 0.88 },
 ]
 
 const REVIEWER_WORKLOAD = [
@@ -43,17 +46,17 @@ const REVIEWER_WORKLOAD = [
 const ALERTS = [
   {
     title: 'Low-confidence queue is rising',
-    description: '12 records below 65% confidence need manual review.',
+    description: 'Candidate groups below 65% confidence need manual review.',
     tone: 'warning',
   },
   {
     title: 'Reviewer imbalance detected',
-    description: 'Amina Noor has 5 more assigned items than average.',
+    description: 'Amina Noor currently has more assigned cases than average.',
     tone: 'default',
   },
   {
     title: 'Precision trend improving',
-    description: 'Model precision has increased across the last 4 checkpoints.',
+    description: 'Model precision has increased across the last checkpoints.',
     tone: 'success',
   },
 ] as const
@@ -150,20 +153,32 @@ export default function AdminPage() {
   const [range, setRange] = useState<FilterOption>('7 days')
 
   const metrics = useMemo(() => {
-    const total = QUEUE_ITEMS.length
-    const pending = QUEUE_ITEMS.filter((q) => q.status === 'pending').length
-    const confirmed = QUEUE_ITEMS.filter((q) => q.status === 'confirmed').length
-    const rejected = QUEUE_ITEMS.filter((q) => q.status === 'rejected').length
+    const total = MATCH_GROUPS.length
+
+    const pending = MATCH_GROUPS.filter(
+      (group) => group.status === 'suggested'
+    ).length
+
+    const confirmed = MATCH_GROUPS.filter(
+      (group) => group.status === 'confirmed' || group.status === 'merged'
+    ).length
+
+    const rejected = MATCH_GROUPS.filter(
+      (group) => group.status === 'rejected'
+    ).length
+
     const reviewed = confirmed + rejected
 
-    const highConfidence = QUEUE_ITEMS.filter(
-      (q) => (q.confidence ?? 0) >= 0.9
+    const highConfidence = MATCH_GROUPS.filter(
+      (group) => group.confidence >= 0.9
     ).length
-    const mediumConfidence = QUEUE_ITEMS.filter(
-      (q) => (q.confidence ?? 0) >= 0.75 && (q.confidence ?? 0) < 0.9
+
+    const mediumConfidence = MATCH_GROUPS.filter(
+      (group) => group.confidence >= 0.75 && group.confidence < 0.9
     ).length
-    const lowConfidence = QUEUE_ITEMS.filter(
-      (q) => (q.confidence ?? 0) < 0.75
+
+    const lowConfidence = MATCH_GROUPS.filter(
+      (group) => group.confidence < 0.75
     ).length
 
     return {
@@ -177,6 +192,33 @@ export default function AdminPage() {
       lowConfidence,
     }
   }, [])
+
+  const pieData = useMemo(
+    () => [
+      {
+        name: 'Confirmed',
+        value: metrics.total
+          ? Math.round((metrics.confirmed / metrics.total) * 100)
+          : 0,
+        color: 'var(--success)',
+      },
+      {
+        name: 'Rejected',
+        value: metrics.total
+          ? Math.round((metrics.rejected / metrics.total) * 100)
+          : 0,
+        color: 'var(--danger)',
+      },
+      {
+        name: 'Pending',
+        value: metrics.total
+          ? Math.round((metrics.pending / metrics.total) * 100)
+          : 0,
+        color: 'var(--warning)',
+      },
+    ],
+    [metrics]
+  )
 
   return (
     <AppShell>
@@ -246,7 +288,7 @@ export default function AdminPage() {
               <StatPanel
                 title="Total Reviewed"
                 value={metrics.reviewed}
-                meta={`of ${metrics.total} records`}
+                meta={`of ${metrics.total} candidate groups`}
                 icon={<Activity size={20} />}
                 tone="default"
               />
@@ -257,7 +299,7 @@ export default function AdminPage() {
                   metrics.total
                     ? Math.round((metrics.confirmed / metrics.total) * 100)
                     : 0
-                }% of all records`}
+                }% of all groups`}
                 icon={<CheckCircle2 size={20} />}
                 tone="success"
               />
@@ -268,7 +310,7 @@ export default function AdminPage() {
                   metrics.total
                     ? Math.round((metrics.rejected / metrics.total) * 100)
                     : 0
-                }% of all records`}
+                }% of all groups`}
                 icon={<XCircle size={20} />}
                 tone="danger"
               />
@@ -283,7 +325,86 @@ export default function AdminPage() {
 
             <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.65fr)_420px]">
               <div className="space-y-5">
+                <PageCard className="p-5 md:p-6">
+                  <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <h2 className="tw-heading text-[22px] font-bold">
+                        Queue health
+                      </h2>
+                      <p
+                        className="mt-1 text-sm"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        Confidence distribution across current candidate groups
+                      </p>
+                    </div>
 
+                    <Link
+                      href="/review"
+                      className="inline-flex items-center gap-1 text-sm font-semibold"
+                      style={{ color: 'var(--primary)' }}
+                    >
+                      View queue
+                      <ChevronRight size={16} />
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                    {[
+                      {
+                        label: 'High confidence',
+                        value: metrics.highConfidence,
+                        chip: '≥ 90%',
+                        chipBg: 'var(--success-soft)',
+                        chipColor: 'var(--success)',
+                      },
+                      {
+                        label: 'Medium confidence',
+                        value: metrics.mediumConfidence,
+                        chip: '75–89%',
+                        chipBg: 'var(--warning-soft)',
+                        chipColor: 'var(--warning)',
+                      },
+                      {
+                        label: 'Low confidence',
+                        value: metrics.lowConfidence,
+                        chip: '< 75%',
+                        chipBg: 'var(--danger-soft)',
+                        chipColor: 'var(--danger)',
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="rounded-xl border p-4"
+                        style={{
+                          background: 'var(--surface-soft)',
+                          borderColor: 'var(--border)',
+                        }}
+                      >
+                        <p
+                          className="text-[12px] font-semibold uppercase tracking-[0.08em]"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          {item.label}
+                        </p>
+                        <div className="mt-3 flex items-end justify-between gap-4">
+                          <span className="tw-heading text-[30px] font-bold leading-none">
+                            {item.value}
+                          </span>
+                          <span
+                            className="rounded-full px-2.5 py-1 text-xs font-semibold"
+                            style={{
+                              background: item.chipBg,
+                              color: item.chipColor,
+                            }}
+                          >
+                            {item.chip}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </PageCard>
 
                 <PageCard className="p-5 md:p-6">
                   <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
@@ -490,7 +611,7 @@ export default function AdminPage() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={PIE_DATA}
+                          data={pieData}
                           cx="50%"
                           cy="50%"
                           innerRadius={56}
@@ -498,7 +619,7 @@ export default function AdminPage() {
                           paddingAngle={3}
                           dataKey="value"
                         >
-                          {PIE_DATA.map((entry) => (
+                          {pieData.map((entry) => (
                             <Cell key={entry.name} fill={entry.color} />
                           ))}
                         </Pie>
@@ -517,7 +638,7 @@ export default function AdminPage() {
                   </div>
 
                   <div className="mt-3 space-y-2.5">
-                    {PIE_DATA.map((item) => (
+                    {pieData.map((item) => (
                       <div
                         key={item.name}
                         className="flex items-center justify-between rounded-xl border px-3 py-2.5"
