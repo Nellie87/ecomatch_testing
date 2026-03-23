@@ -67,9 +67,11 @@ type FilterOption = (typeof FILTER_OPTIONS)[number]
 function PageCard({
   children,
   className = '',
+  style,
 }: {
   children: React.ReactNode
   className?: string
+  style?: React.CSSProperties
 }) {
   return (
     <section
@@ -78,6 +80,7 @@ function PageCard({
         background: 'var(--surface)',
         borderColor: 'var(--border)',
         boxShadow: 'var(--shadow-md)',
+        ...style,
       }}
     >
       {children}
@@ -100,36 +103,71 @@ function StatPanel({
 }) {
   const toneMap = {
     default: {
-      bg: 'var(--primary-soft)',
-      color: 'var(--primary)',
+      cardBg: 'color-mix(in srgb, var(--primary) 8%, white)',
+      cardBorder: 'color-mix(in srgb, var(--primary) 18%, var(--border))',
+      iconBg: 'color-mix(in srgb, var(--primary) 14%, white)',
+      iconColor: 'var(--primary)',
+      valueColor: 'var(--primary)',
+      metaColor: 'color-mix(in srgb, var(--primary) 55%, var(--text-muted))',
+      titleColor: 'color-mix(in srgb, var(--primary) 60%, var(--text-muted))',
     },
     success: {
-      bg: 'var(--success-soft)',
-      color: 'var(--success)',
+      cardBg: 'color-mix(in srgb, var(--success) 9%, white)',
+      cardBorder: 'color-mix(in srgb, var(--success) 20%, var(--border))',
+      iconBg: 'color-mix(in srgb, var(--success) 16%, white)',
+      iconColor: 'var(--success)',
+      valueColor: 'var(--success)',
+      metaColor: 'color-mix(in srgb, var(--success) 55%, var(--text-muted))',
+      titleColor: 'color-mix(in srgb, var(--success) 60%, var(--text-muted))',
     },
     warning: {
-      bg: 'var(--warning-soft)',
-      color: 'var(--warning)',
+      cardBg: 'color-mix(in srgb, var(--warning) 10%, white)',
+      cardBorder: 'color-mix(in srgb, var(--warning) 24%, var(--border))',
+      iconBg: 'color-mix(in srgb, var(--warning) 18%, white)',
+      iconColor: 'var(--warning)',
+      valueColor: 'var(--warning)',
+      metaColor: 'color-mix(in srgb, var(--warning) 58%, var(--text-muted))',
+      titleColor: 'color-mix(in srgb, var(--warning) 60%, var(--text-muted))',
     },
     danger: {
-      bg: 'var(--danger-soft)',
-      color: 'var(--danger)',
+      cardBg: 'color-mix(in srgb, var(--danger) 8%, white)',
+      cardBorder: 'color-mix(in srgb, var(--danger) 20%, var(--border))',
+      iconBg: 'color-mix(in srgb, var(--danger) 16%, white)',
+      iconColor: 'var(--danger)',
+      valueColor: 'var(--danger)',
+      metaColor: 'color-mix(in srgb, var(--danger) 55%, var(--text-muted))',
+      titleColor: 'color-mix(in srgb, var(--danger) 58%, var(--text-muted))',
     },
   }
 
+  const currentTone = toneMap[tone]
+
   return (
-    <PageCard className="p-5">
+    <PageCard
+      className="p-5 transition-colors"
+      style={{
+        background: currentTone.cardBg,
+        borderColor: currentTone.cardBorder,
+      }}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p
             className="text-[12px] font-semibold uppercase tracking-[0.08em]"
-            style={{ color: 'var(--text-muted)' }}
+            style={{ color: currentTone.titleColor }}
           >
             {title}
           </p>
-          <h3 className="tw-heading mt-3 text-3xl font-bold">{value}</h3>
+
+          <h3
+            className="tw-heading mt-3 text-3xl font-bold"
+            style={{ color: currentTone.valueColor }}
+          >
+            {value}
+          </h3>
+
           {meta ? (
-            <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+            <p className="mt-2 text-sm" style={{ color: currentTone.metaColor }}>
               {meta}
             </p>
           ) : null}
@@ -138,8 +176,8 @@ function StatPanel({
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
           style={{
-            background: toneMap[tone].bg,
-            color: toneMap[tone].color,
+            background: currentTone.iconBg,
+            color: currentTone.iconColor,
           }}
         >
           {icon}
@@ -325,87 +363,6 @@ export default function AdminPage() {
 
             <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.65fr)_420px]">
               <div className="space-y-5">
-                <PageCard className="p-5 md:p-6">
-                  <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                    <div>
-                      <h2 className="tw-heading text-[22px] font-bold">
-                        Queue health
-                      </h2>
-                      <p
-                        className="mt-1 text-sm"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        Confidence distribution across current candidate groups
-                      </p>
-                    </div>
-
-                    <Link
-                      href="/review"
-                      className="inline-flex items-center gap-1 text-sm font-semibold"
-                      style={{ color: 'var(--primary)' }}
-                    >
-                      View queue
-                      <ChevronRight size={16} />
-                    </Link>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                    {[
-                      {
-                        label: 'High confidence',
-                        value: metrics.highConfidence,
-                        chip: '≥ 90%',
-                        chipBg: 'var(--success-soft)',
-                        chipColor: 'var(--success)',
-                      },
-                      {
-                        label: 'Medium confidence',
-                        value: metrics.mediumConfidence,
-                        chip: '75–89%',
-                        chipBg: 'var(--warning-soft)',
-                        chipColor: 'var(--warning)',
-                      },
-                      {
-                        label: 'Low confidence',
-                        value: metrics.lowConfidence,
-                        chip: '< 75%',
-                        chipBg: 'var(--danger-soft)',
-                        chipColor: 'var(--danger)',
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="rounded-xl border p-4"
-                        style={{
-                          background: 'var(--surface-soft)',
-                          borderColor: 'var(--border)',
-                        }}
-                      >
-                        <p
-                          className="text-[12px] font-semibold uppercase tracking-[0.08em]"
-                          style={{ color: 'var(--text-muted)' }}
-                        >
-                          {item.label}
-                        </p>
-                        <div className="mt-3 flex items-end justify-between gap-4">
-                          <span className="tw-heading text-[30px] font-bold leading-none">
-                            {item.value}
-                          </span>
-                          <span
-                            className="rounded-full px-2.5 py-1 text-xs font-semibold"
-                            style={{
-                              background: item.chipBg,
-                              color: item.chipColor,
-                            }}
-                          >
-                            {item.chip}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </PageCard>
-
                 <PageCard className="p-5 md:p-6">
                   <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div>
