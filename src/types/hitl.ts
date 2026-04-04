@@ -19,11 +19,32 @@ export type SourceName =
   | 'erp'
   | 'website'
   | 'manual'
+  | 'sanctions'
 
 export type SourceRecord = {
   id: string
-  source: SourceName
-  fields: {
+
+  // new structure
+  source_system: SourceName
+  source_id: string
+  entity_type: string
+  name?: string
+  observed_at?: string
+  raw_payload_json?: unknown
+  record_subtype?: string
+  record_family?: string
+  anchor_name?: string
+  client_name?: string
+  client_name_primary?: string
+  country?: string
+  address?: string
+  sector?: string
+  reg_no?: string
+  field_values?: Record<string, unknown>
+
+  // backward compatibility
+  source?: SourceName
+  fields?: {
     name?: string
     vat?: string
     address?: string

@@ -3,21 +3,35 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AppShell } from '@/components/layout/app-shell'
 import { ExplainableAIPanel } from '@/components/review/ExplainableAIPanel'
-import { MATCH_GROUPS, rejectionReasons, REVIEWERS } from '@/lib/review-data'
+import { MATCH_GROUPS, rejectionReasons } from '@/lib/review-data'
 import type { MatchCandidateGroup, SourceRecord } from '@/types/hitl'
 import {
   Check,
   X,
   SkipForward,
   Info,
-  Scissors,
-  Merge,
-  Keyboard,
+  Search,
+  Clock3,
   CheckCircle2,
   AlertTriangle,
+  GitCompareArrows,
+  Layers3,
 } from 'lucide-react'
 
-const FIELDS = ['name', 'vat', 'address', 'country', 'phone', 'email'] as const
+const DISPLAY_FIELDS = [
+  'name',
+  'client_name',
+  'client_name_primary',
+  'anchor_name',
+  'reg_no',
+  'country',
+  'address',
+  'sector',
+  'entity_type',
+  'record_family',
+  'record_subtype',
+  'observed_at',
+] as const
 
 function PageCard({
   children,
@@ -45,7 +59,6 @@ function ConfidenceRing({ value }: { value: number }) {
   const r = 28
   const circumference = 2 * Math.PI * r
   const dash = (pct / 100) * circumference
-
   const color =
     pct >= 85 ? 'var(--success)' : pct >= 65 ? 'var(--warning)' : 'var(--danger)'
 
@@ -71,12 +84,14 @@ function ConfidenceRing({ value }: { value: number }) {
           strokeLinecap="round"
         />
       </svg>
-
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-sm font-bold" style={{ color }}>
           {pct}%
         </span>
-        <span className="text-[9px] uppercase tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>
+        <span
+          className="text-[9px] uppercase tracking-[0.08em]"
+          style={{ color: 'var(--text-muted)' }}
+        >
           conf.
         </span>
       </div>
@@ -84,57 +99,217 @@ function ConfidenceRing({ value }: { value: number }) {
   )
 }
 
+function getSourceLabel(record: SourceRecord) {
+  return record.source_system || record.source || 'manual'
+}
+
+function getRecordField(record: SourceRecord, field: string): string {
+  const directValue = record[field as keyof SourceRecord]
+  if (directValue !== undefined && directValue !== null && String(directValue).trim()) {
+    return String(directValue)
+  }
+
+  const fieldValuesValue = record.field_values?.[field]
+  if (
+    fieldValuesValue !== undefined &&
+    fieldValuesValue !== null &&
+    String(fieldValuesValue).trim()
+  ) {
+    return String(fieldValuesValue)
+  }
+
+  const legacyFieldValue =
+    record.fields?.[field as keyof NonNullable<SourceRecord['fields']>]
+  if (
+    legacyFieldValue !== undefined &&
+    legacyFieldValue !== null &&
+    String(legacyFieldValue).trim()
+  ) {
+    return String(legacyFieldValue)
+  }
+
+  return ''
+}
+
 function getFieldStatus(field: string, records: SourceRecord[]) {
-  const values = records.map((record) => record.fields[field as keyof typeof record.fields] || '')
+  const values = records.map((record) => getRecordField(record, field))
   const normalized = values.map((value) =>
     String(value).toLowerCase().replace(/[^a-z0-9]/g, '')
   )
-
   const nonEmpty = normalized.filter(Boolean)
-  if (nonEmpty.length === 0) return 'empty'
 
+  if (nonEmpty.length === 0) return 'empty'
   const allSame = nonEmpty.every((value) => value === nonEmpty[0])
   return allSame ? 'match' : 'partial'
 }
 
-function getDefaultSourceForField(group: MatchCandidateGroup, field: string): string | null {
+function getDefaultSourceForField(
+  group: MatchCandidateGroup,
+  field: string
+): string | null {
   const valuesBySource: Record<string, string> = {}
 
   group.records.forEach((record) => {
-    const value = record.fields[field as keyof typeof record.fields]
+    const value = getRecordField(record, field)
+    const source = getSourceLabel(record)
     if (value && String(value).trim()) {
-      valuesBySource[record.source] = String(value)
+      valuesBySource[source] = String(value)
     }
   })
 
   if (Object.keys(valuesBySource).length <= 1) return null
 
-  const priorityOrder = ['registry', 'erp', 'crm', 'website', 'manual']
+  const priorityOrder = ['registry', 'sanctions', 'erp', 'crm', 'website', 'manual']
   for (const source of priorityOrder) {
     if (valuesBySource[source]) return source
   }
-
   return Object.keys(valuesBySource)[0] || null
+}
+
+function getScenarioLabel(group: MatchCandidateGroup) {
+  const confidencePct = Math.round(group.confidence * 100)
+  const reasons = group.reasons || []
+  const positiveReasons = reasons.filter((r) => r.score > 0).length
+  const negativeReasons = reasons.filter((r) => r.score < 0).length
+
+  if (confidencePct >= 90 && negativeReasons === 0) {
+    return {
+      label: 'Exact high-confidence match',
+      tone: 'success' as const,
+      icon: CheckCircle2,
+    }
+  }
+  if (confidencePct >= 75 && negativeReasons > 0) {
+    return {
+      label: 'Likely match with conflicts',
+      tone: 'warning' as const,
+      icon: GitCompareArrows,
+    }
+  }
+  if (confidencePct < 65 && positiveReasons > 0) {
+    return {
+      label: 'Weak match — needs review',
+      tone: 'warning' as const,
+      icon: AlertTriangle,
+    }
+  }
+  return {
+    label: 'Probable mismatch',
+    tone: 'danger' as const,
+    icon: Layers3,
+  }
+}
+
+function getToneStyles(tone: 'success' | 'warning' | 'danger' | 'primary') {
+  if (tone === 'success') {
+    return {
+      bg: 'var(--success-soft)',
+      color: 'var(--success)',
+      border: 'var(--success)',
+    }
+  }
+  if (tone === 'warning') {
+    return {
+      bg: 'var(--warning-soft)',
+      color: 'var(--warning)',
+      border: 'var(--warning)',
+    }
+  }
+  if (tone === 'danger') {
+    return {
+      bg: 'var(--danger-soft)',
+      color: 'var(--danger)',
+      border: 'var(--danger)',
+    }
+  }
+  return {
+    bg: 'var(--primary-soft)',
+    color: 'var(--primary)',
+    border: 'var(--primary)',
+  }
+}
+
+function getGroupCompanyTitle(group: MatchCandidateGroup | null) {
+  if (!group) return 'Unnamed company'
+
+  const registryRecord = group.records.find(
+    (record) => getSourceLabel(record).toLowerCase() === 'registry'
+  )
+
+  const priorityRecords = registryRecord ? [registryRecord, ...group.records] : group.records
+
+  for (const record of priorityRecords) {
+    const value =
+      getRecordField(record, 'name') ||
+      getRecordField(record, 'client_name_primary') ||
+      getRecordField(record, 'client_name') ||
+      getRecordField(record, 'anchor_name')
+
+    if (value?.trim()) return value
+  }
+
+  return 'Unnamed company'
 }
 
 export default function ReviewPage() {
   const [groups, setGroups] = useState<MatchCandidateGroup[]>(MATCH_GROUPS)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [showExplainableAI, setShowExplainableAI] = useState(false)
-
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
-  const [showMergeModal, setShowMergeModal] = useState(false)
-  const [showSplitModal, setShowSplitModal] = useState(false)
 
   const [selectedReason, setSelectedReason] = useState('')
-  const [selectedRecordsToSplit, setSelectedRecordsToSplit] = useState<Set<string>>(new Set())
   const [goldenOverrides, setGoldenOverrides] = useState<Record<string, string>>({})
   const [toast, setToast] = useState<{ msg: string; color: string } | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const filteredGroups = useMemo(() => {
+    if (!searchTerm.trim()) return groups
+
+    const term = searchTerm.toLowerCase().trim()
+    return groups.filter((group) => {
+      const inGroupMeta =
+        group.id.toLowerCase().includes(term) ||
+        String(Math.round(group.confidence * 100)).includes(term) ||
+        (group.assignee || '').toLowerCase().includes(term)
+
+      const inRecords = group.records.some((record) => {
+        const searchable = [
+          getSourceLabel(record),
+          record.source_id,
+          record.entity_type,
+          record.name,
+          record.anchor_name,
+          record.client_name,
+          record.client_name_primary,
+          record.country,
+          record.address,
+          record.sector,
+          record.reg_no,
+          record.record_family,
+          record.record_subtype,
+          getRecordField(record, 'phone'),
+          getRecordField(record, 'email'),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+
+        return searchable.includes(term)
+      })
+
+      return inGroupMeta || inRecords
+    })
+  }, [groups, searchTerm])
 
   const suggestedCandidates = useMemo(
-    () => groups.filter((group) => group.status === 'suggested'),
-    [groups]
+    () => filteredGroups.filter((group) => group.status === 'suggested'),
+    [filteredGroups]
+  )
+
+  const reviewedGroups = useMemo(
+    () => filteredGroups.filter((group) => group.status !== 'suggested'),
+    [filteredGroups]
   )
 
   const currentGroup =
@@ -142,13 +317,19 @@ export default function ReviewPage() {
       ? suggestedCandidates[currentIndex] || suggestedCandidates[0]
       : null
 
+  const currentCompanyTitle = useMemo(
+    () => getGroupCompanyTitle(currentGroup),
+    [currentGroup]
+  )
+
   const totalRecords = groups.length
   const reviewedCount = groups.filter((group) => group.status !== 'suggested').length
+  const pendingCount = suggestedCandidates.length
   const progress = totalRecords > 0 ? (reviewedCount / totalRecords) * 100 : 0
 
   const showToast = useCallback((msg: string, color: string) => {
     setToast({ msg, color })
-    window.setTimeout(() => setToast(null), 2400)
+    setTimeout(() => setToast(null), 2400)
   }, [])
 
   const handleNext = useCallback(() => {
@@ -157,23 +338,14 @@ export default function ReviewPage() {
     }
   }, [suggestedCandidates.length])
 
-  useEffect(() => {
-    if (currentIndex >= suggestedCandidates.length && suggestedCandidates.length > 0) {
-      setCurrentIndex(0)
-    }
-  }, [suggestedCandidates.length, currentIndex])
-
   const handleReject = useCallback(() => {
     if (!currentGroup || !selectedReason) return
 
     setGroups((prev) =>
       prev.map((group) =>
-        group.id === currentGroup.id
-          ? { ...group, status: 'rejected' }
-          : group
+        group.id === currentGroup.id ? { ...group, status: 'rejected' } : group
       )
     )
-
     setShowRejectModal(false)
     setSelectedReason('')
     showToast(`Group ${currentGroup.id} rejected`, 'var(--danger)')
@@ -185,50 +357,14 @@ export default function ReviewPage() {
     setGroups((prev) =>
       prev.map((group) =>
         group.id === currentGroup.id
-          ? {
-              ...group,
-              status: 'confirmed',
-              goldenOverrides,
-            }
+          ? { ...group, status: 'confirmed', goldenOverrides }
           : group
       )
     )
-
     setShowConfirmModal(false)
     setGoldenOverrides({})
     showToast(`Group ${currentGroup.id} confirmed`, 'var(--success)')
   }, [currentGroup, goldenOverrides, showToast])
-
-  const handleMerge = useCallback(() => {
-    if (!currentGroup) return
-
-    setGroups((prev) =>
-      prev.map((group) =>
-        group.id === currentGroup.id
-          ? { ...group, status: 'merged' }
-          : group
-      )
-    )
-
-    setShowMergeModal(false)
-    showToast(`Group ${currentGroup.id} merged`, 'var(--primary)')
-  }, [currentGroup, showToast])
-
-  const handleSplit = useCallback(() => {
-    if (!currentGroup || selectedRecordsToSplit.size === 0) return
-
-    setGroups((prev) =>
-      prev.map((group) =>
-        group.id === currentGroup.id
-          ? { ...group, status: 'split' }
-          : group
-      )
-    )
-
-    setShowSplitModal(false)
-    setSelectedRecordsToSplit(new Set())
-    showToast(`Group ${currentGroup.id} split`, 'var(--warning)')
-  }, [currentGroup, selectedRecordsToSplit, showToast])
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -240,14 +376,7 @@ export default function ReviewPage() {
         (e.target as HTMLElement)?.isContentEditable
 
       if (isTyping) return
-      if (
-        showRejectModal ||
-        showConfirmModal ||
-        showMergeModal ||
-        showSplitModal
-      ) {
-        return
-      }
+      if (showRejectModal || showConfirmModal) return
 
       switch (e.key.toLowerCase()) {
         case 'c':
@@ -258,39 +387,28 @@ export default function ReviewPage() {
           e.preventDefault()
           if (currentGroup) setShowRejectModal(true)
           break
-        case 'm':
-          e.preventDefault()
-          if (currentGroup) setShowMergeModal(true)
-          break
-        case 'd':
-          e.preventDefault()
-          if (currentGroup) setShowSplitModal(true)
-          break
         case 'n':
         case 's':
           e.preventDefault()
           handleNext()
-          break
-        default:
           break
       }
     }
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [
-    currentGroup,
-    handleNext,
-    showConfirmModal,
-    showMergeModal,
-    showRejectModal,
-    showSplitModal,
-  ])
+  }, [currentGroup, handleNext, showConfirmModal, showRejectModal])
+
+  useEffect(() => {
+    if (currentIndex >= suggestedCandidates.length && suggestedCandidates.length > 0) {
+      setCurrentIndex(0)
+    }
+  }, [suggestedCandidates.length, currentIndex])
 
   return (
     <AppShell>
       <div className="tw-page">
-        <div className="space-y-6">
+        <div className="space-y-8">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <h1 className="tw-heading text-[34px] font-bold leading-none md:text-[42px]">
@@ -300,319 +418,606 @@ export default function ReviewPage() {
                 className="mt-3 max-w-3xl text-sm md:text-[15px]"
                 style={{ color: 'var(--text-muted)' }}
               >
-                Review candidate groups, inspect explainability, and decide whether to confirm, reject, merge, or split.
+                Review candidate entities across source systems, inspect explainability,
+                and decide whether to confirm or reject.
               </p>
             </div>
-
-            {currentGroup ? (
-              <div className="flex items-center gap-4 rounded-2xl border px-4 py-3"
-                style={{
-                  background: 'var(--surface)',
-                  borderColor: 'var(--border)',
-                }}>
-                <div className="text-right">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>
-                    Current group
-                  </div>
-                  <div className="text-sm font-bold">{currentGroup.id}</div>
-                </div>
-                <ConfidenceRing value={currentGroup.confidence} />
-              </div>
-            ) : null}
           </div>
 
-          <PageCard className="p-5 md:p-6">
-            <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="text-sm font-semibold">Review Progress</div>
-                <div className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
-                  {reviewedCount} of {totalRecords} reviewed — {Math.round(progress)}% complete
-                </div>
+          <PageCard className="p-4 md:p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative w-full max-w-[520px]">
+                <Search
+                  size={16}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--text-muted)' }}
+                />
+                <input
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value)
+                    setCurrentIndex(0)
+                  }}
+                  placeholder="Search by group id, source system, company name, reg no, address, sector..."
+                  className="w-full rounded-xl border py-3 pl-10 pr-4 text-sm outline-none"
+                  style={{
+                    background: 'var(--surface-soft)',
+                    borderColor: 'var(--border)',
+                    color: 'var(--text)',
+                  }}
+                />
               </div>
 
-              {currentGroup ? (
+              <div className="flex flex-wrap gap-2">
                 <span
-                  className="inline-flex rounded-full px-3 py-1.5 text-xs font-semibold"
+                  className="rounded-full px-3 py-1.5 text-xs font-semibold"
                   style={{
                     background: 'var(--primary-soft)',
                     color: 'var(--primary)',
                   }}
                 >
-                  Confidence: {Math.round(currentGroup.confidence * 100)}%
+                  Filtered: {filteredGroups.length}
                 </span>
-              ) : null}
-            </div>
-
-            <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: 'var(--surface-soft)' }}>
-              <div
-                className="h-full rounded-full transition-all"
-                style={{
-                  width: `${progress}%`,
-                  background: 'var(--primary)',
-                }}
-              />
-            </div>
-
-            {currentGroup?.reasons?.length ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {currentGroup.reasons.slice(0, 4).map((reason, idx) => (
-                  <span
-                    key={`${reason.text}-${idx}`}
-                    className="rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                    style={{
-                      background:
-                        reason.score > 0 ? 'var(--success-soft)' : 'var(--danger-soft)',
-                      color:
-                        reason.score > 0 ? 'var(--success)' : 'var(--danger)',
-                    }}
-                  >
-                    {reason.text}
-                  </span>
-                ))}
+                <span
+                  className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                  style={{
+                    background: 'var(--warning-soft)',
+                    color: 'var(--warning)',
+                  }}
+                >
+                  Pending: {pendingCount}
+                </span>
+                <span
+                  className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                  style={{
+                    background: 'var(--success-soft)',
+                    color: 'var(--success)',
+                  }}
+                >
+                  Reviewed: {reviewedGroups.length}
+                </span>
               </div>
-            ) : null}
+            </div>
           </PageCard>
 
-          {!currentGroup ? (
-            <PageCard className="p-12 text-center">
-              <div className="text-4xl">✓</div>
-              <h2 className="tw-heading mt-4 text-[28px] font-bold">
-                All matches reviewed
-              </h2>
-              <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
-                No suggested groups remain in the queue.
-              </p>
-            </PageCard>
-          ) : (
-            <>
-              <div
-                className="grid gap-4"
-                style={{
-                  gridTemplateColumns: `repeat(${currentGroup.records.length}, minmax(0, 1fr))`,
-                }}
-              >
-                {currentGroup.records.map((record, idx) => {
-                  const isPrimary = record.source === 'registry'
-
-                  return (
-                    <div
-                      key={`${record.source}-${idx}`}
-                      className="overflow-hidden rounded-2xl border"
-                      style={{
-                        background: 'var(--surface)',
-                        borderColor: isPrimary ? 'var(--primary)' : 'var(--border)',
-                        boxShadow: 'var(--shadow-md)',
-                      }}
-                    >
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                label: 'Pending matches',
+                value: pendingCount,
+                meta: 'Still in analyst queue',
+                icon: Clock3,
+                tone: 'warning' as const,
+              },
+              {
+                label: 'Completed matches',
+                value: reviewedCount,
+                meta: `${Math.round(progress)}% of all cases done`,
+                icon: CheckCircle2,
+                tone: 'success' as const,
+              },
+            ].map((item) => {
+              const styles = getToneStyles(item.tone)
+              const Icon = item.icon
+              return (
+                <PageCard key={item.label} className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
                       <div
-                        className="flex items-center justify-between px-5 py-3"
-                        style={{
-                          background: isPrimary ? 'var(--primary-soft)' : 'var(--surface-soft)',
-                          borderBottom: `1px solid var(--border)`,
-                        }}
+                        className="text-[11px] font-semibold uppercase tracking-[0.08em]"
+                        style={{ color: 'var(--text-muted)' }}
                       >
-                        <span
-                          className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase"
-                          style={{
-                            background: isPrimary ? 'var(--primary)' : 'var(--info-soft)',
-                            color: isPrimary ? '#fff' : 'var(--primary)',
-                          }}
-                        >
-                          {record.source}
-                        </span>
+                        {item.label}
+                      </div>
+                      <div className="mt-3 text-3xl font-bold">{item.value}</div>
+                      <div
+                        className="mt-2 text-sm"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        {item.meta}
+                      </div>
+                    </div>
+                    <div
+                      className="flex h-11 w-11 items-center justify-center rounded-2xl"
+                      style={{ background: styles.bg, color: styles.color }}
+                    >
+                      <Icon size={18} />
+                    </div>
+                  </div>
+                </PageCard>
+              )
+            })}
+          </div>
 
-                        {isPrimary ? (
+          <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+            <div className="space-y-6">
+              {!currentGroup ? (
+                <PageCard className="p-12 text-center">
+                  <div className="text-4xl">✓</div>
+                  <h2 className="tw-heading mt-4 text-[28px] font-bold">
+                    All matches reviewed
+                  </h2>
+                  <p
+                    className="mt-2 text-sm"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    No suggested groups remain in the queue for the current filter.
+                  </p>
+                </PageCard>
+              ) : (
+                <>
+                  <PageCard className="p-5">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="min-w-0">
+                        <div
+                          className="text-[11px] font-semibold uppercase tracking-[0.08em]"
+                          style={{ color: 'var(--text-muted)' }}
+                        >
+                          Company under review
+                        </div>
+                        <h2 className="mt-2 text-[28px] font-bold leading-tight">
+                          {currentCompanyTitle}
+                        </h2>
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <div className="text-sm font-semibold">{currentGroup.id}</div>
                           <span
                             className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase"
                             style={{
-                              background: 'var(--surface)',
+                              background: 'var(--primary-soft)',
                               color: 'var(--primary)',
-                              border: `1px solid var(--primary)`,
                             }}
                           >
-                            Primary
+                            {currentGroup.records.length} records
                           </span>
-                        ) : null}
-                      </div>
-
-                      <div className="space-y-3 p-5">
-                        {FIELDS.map((field) => {
-                          const value = record.fields[field] || ''
-                          const status = getFieldStatus(field, currentGroup.records)
-
-                          return (
-                            <div
-                              key={field}
-                              className="rounded-xl border p-3"
+                          {currentGroup.assignee && (
+                            <span
+                              className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase"
                               style={{
                                 background: 'var(--surface-soft)',
-                                borderColor: 'var(--border)',
+                                color: 'var(--text-muted)',
+                                border: '1px solid var(--border)',
                               }}
                             >
-                              <div className="mb-1 flex items-center gap-2">
-                                <div
-                                  className="h-2 w-2 rounded-full"
-                                  style={{
-                                    background:
-                                      status === 'match'
-                                        ? 'var(--success)'
-                                        : status === 'partial'
-                                          ? 'var(--warning)'
-                                          : 'var(--border)',
-                                  }}
-                                />
-                                <span
-                                  className="text-[10px] font-semibold uppercase tracking-[0.08em]"
-                                  style={{ color: 'var(--text-muted)' }}
-                                >
-                                  {field}
-                                </span>
-                              </div>
+                              {currentGroup.assignee}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                              <div
-                                className="text-[13px] font-medium"
-                                style={{
-                                  color: value ? 'var(--text)' : 'var(--text-muted)',
-                                  fontStyle: value ? 'normal' : 'italic',
-                                }}
-                              >
-                                {value || '(not provided)'}
-                              </div>
+                      <div className="flex items-center gap-4">
+                        <ConfidenceRing value={currentGroup.confidence} />
+                        {(() => {
+                          const scenario = getScenarioLabel(currentGroup)
+                          const styles = getToneStyles(
+                            scenario.tone === 'danger'
+                              ? 'danger'
+                              : scenario.tone === 'warning'
+                                ? 'warning'
+                                : 'success'
+                          )
+                          const Icon = scenario.icon
+                          return (
+                            <div
+                              className="inline-flex items-center gap-2 rounded-xl border px-3 py-2"
+                              style={{
+                                background: styles.bg,
+                                borderColor: styles.border,
+                                color: styles.color,
+                              }}
+                            >
+                              <Icon size={15} />
+                              <span className="text-xs font-semibold">
+                                {scenario.label}
+                              </span>
                             </div>
                           )
-                        })}
+                        })()}
                       </div>
                     </div>
-                  )
-                })}
-              </div>
+                  </PageCard>
 
-              <div className="flex flex-wrap gap-5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ background: 'var(--success)' }} />
-                  Fields match
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ background: 'var(--warning)' }} />
-                  Conflict detected
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ background: 'var(--border)' }} />
-                  No data
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                <button
-                  type="button"
-                  onClick={() => setShowExplainableAI(true)}
-                  className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold"
-                  style={{
-                    background: 'var(--surface)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--primary)',
-                  }}
-                >
-                  <Info size={15} />
-                  Why this match?
-                </button>
-
-                <div className="flex flex-wrap gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmModal(true)}
-                    className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-                    style={{ background: 'var(--success)' }}
-                  >
-                    <Check size={15} />
-                    Confirm
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowRejectModal(true)}
-                    className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-                    style={{ background: 'var(--danger)' }}
-                  >
-                    <X size={15} />
-                    Reject
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowMergeModal(true)}
-                    className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold"
+                  <div
+                    className="grid gap-4"
                     style={{
-                      background: 'var(--surface)',
-                      borderColor: 'var(--primary)',
-                      color: 'var(--primary)',
+                      gridTemplateColumns: `repeat(${currentGroup.records.length}, minmax(0, 1fr))`,
                     }}
                   >
-                    <Merge size={15} />
-                    Merge
-                  </button>
+                    {currentGroup.records.map((record, idx) => {
+                      const sourceLabel = getSourceLabel(record)
+                      const isPrimary = sourceLabel === 'registry'
 
-                  <button
-                    type="button"
-                    onClick={() => setShowSplitModal(true)}
-                    className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold"
-                    style={{
-                      background: 'var(--surface)',
-                      borderColor: 'var(--warning)',
-                      color: 'var(--warning)',
-                    }}
-                  >
-                    <Scissors size={15} />
-                    Split
-                  </button>
+                      return (
+                        <div
+                          key={`${sourceLabel}-${record.source_id || idx}`}
+                          className="overflow-hidden rounded-2xl border"
+                          style={{
+                            background: 'var(--surface)',
+                            borderColor: isPrimary ? 'var(--primary)' : 'var(--border)',
+                            boxShadow: 'var(--shadow-md)',
+                          }}
+                        >
+                          <div
+                            className="flex items-center justify-between px-5 py-3"
+                            style={{
+                              background: isPrimary
+                                ? 'var(--primary-soft)'
+                                : 'var(--surface-soft)',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                          >
+                            <div className="flex min-w-0 flex-col">
+                              <span
+                                className="inline-flex w-fit rounded-full px-3 py-1 text-[11px] font-semibold uppercase"
+                                style={{
+                                  background: isPrimary
+                                    ? 'var(--primary)'
+                                    : 'var(--info-soft)',
+                                  color: isPrimary ? '#fff' : 'var(--primary)',
+                                }}
+                              >
+                                {sourceLabel}
+                              </span>
+                              <span
+                                className="mt-1 text-[11px]"
+                                style={{ color: 'var(--text-muted)' }}
+                              >
+                                {record.source_id || 'No source ID'}
+                              </span>
+                            </div>
+                            {isPrimary && (
+                              <span
+                                className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase"
+                                style={{
+                                  background: 'var(--surface)',
+                                  color: 'var(--primary)',
+                                  border: '1px solid var(--primary)',
+                                }}
+                              >
+                                Primary
+                              </span>
+                            )}
+                          </div>
 
-                  <button
-                    type="button"
-                    onClick={handleNext}
-                    className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold"
-                    style={{
-                      background: 'var(--surface-soft)',
-                      borderColor: 'var(--border)',
-                      color: 'var(--text)',
-                    }}
-                  >
-                    <SkipForward size={15} />
-                    Skip
-                  </button>
-                </div>
-              </div>
+                          <div className="space-y-3 p-5">
+                            {DISPLAY_FIELDS.map((field) => {
+                              const value = getRecordField(record, field)
+                              const status = getFieldStatus(field, currentGroup.records)
 
-              <PageCard className="p-4">
-                <div className="flex flex-wrap items-center justify-center gap-6 text-sm" style={{ color: 'var(--text-muted)' }}>
-                  {[
-                    ['C', 'Confirm'],
-                    ['X', 'Reject'],
-                    ['M', 'Merge'],
-                    ['D', 'Split'],
-                    ['N', 'Next'],
-                  ].map(([key, label]) => (
-                    <div key={key} className="flex items-center gap-2">
-                      <kbd
-                        className="rounded-md border px-2 py-1 text-xs font-bold"
+                              return (
+                                <div
+                                  key={field}
+                                  className="rounded-xl border p-3"
+                                  style={{
+                                    background: 'var(--surface-soft)',
+                                    borderColor: 'var(--border)',
+                                  }}
+                                >
+                                  <div className="mb-1 flex items-center gap-2">
+                                    <div
+                                      className="h-2 w-2 rounded-full"
+                                      style={{
+                                        background:
+                                          status === 'match'
+                                            ? 'var(--success)'
+                                            : status === 'partial'
+                                              ? 'var(--warning)'
+                                              : 'var(--border)',
+                                      }}
+                                    />
+                                    <span
+                                      className="text-[10px] font-semibold uppercase tracking-[0.08em]"
+                                      style={{ color: 'var(--text-muted)' }}
+                                    >
+                                      {field.replace(/_/g, ' ')}
+                                    </span>
+                                  </div>
+                                  <div
+                                    className="text-[13px] font-medium"
+                                    style={{
+                                      color: value ? 'var(--text)' : 'var(--text-muted)',
+                                      fontStyle: value ? 'normal' : 'italic',
+                                      overflowWrap: 'anywhere',
+                                    }}
+                                  >
+                                    {value || '(not provided)'}
+                                  </div>
+                                </div>
+                              )
+                            })}
+
+                            {record.raw_payload_json && (
+                              <details
+                                className="rounded-xl border p-3"
+                                style={{
+                                  background: 'var(--surface-soft)',
+                                  borderColor: 'var(--border)',
+                                }}
+                              >
+                                <summary
+                                  className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.08em]"
+                                  style={{ color: 'var(--text-muted)' }}
+                                >
+                                  Raw payload
+                                </summary>
+                                <pre
+                                  className="mt-3 overflow-x-auto text-[11px]"
+                                  style={{ color: 'var(--text-muted)' }}
+                                >
+                                  {JSON.stringify(record.raw_payload_json, null, 2)}
+                                </pre>
+                              </details>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div className="flex flex-wrap gap-5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: 'var(--success)' }}
+                      />{' '}
+                      Fields match
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: 'var(--warning)' }}
+                      />{' '}
+                      Conflict detected
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: 'var(--border)' }}
+                      />{' '}
+                      No data
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setShowExplainableAI(true)}
+                      className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold"
+                      style={{
+                        background: 'var(--surface)',
+                        borderColor: 'var(--border)',
+                        color: 'var(--primary)',
+                      }}
+                    >
+                      <Info size={15} />
+                      Why this match?
+                    </button>
+
+                    <div className="flex flex-wrap gap-2.5">
+                      <button
+                        onClick={() => setShowConfirmModal(true)}
+                        className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+                        style={{ background: 'var(--success)' }}
+                      >
+                        <Check size={15} /> Confirm
+                      </button>
+                      <button
+                        onClick={() => setShowRejectModal(true)}
+                        className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+                        style={{ background: 'var(--danger)' }}
+                      >
+                        <X size={15} /> Reject
+                      </button>
+                      <button
+                        onClick={handleNext}
+                        className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold"
                         style={{
-                          background: 'var(--surface)',
+                          background: 'var(--surface-soft)',
                           borderColor: 'var(--border)',
                           color: 'var(--text)',
                         }}
                       >
-                        {key}
-                      </kbd>
-                      <span>{label}</span>
+                        <SkipForward size={15} /> Skip
+                      </button>
                     </div>
-                  ))}
+                  </div>
+
+                  <PageCard className="p-4">
+                    <div
+                      className="flex flex-wrap items-center justify-center gap-6 text-sm"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      {[
+                        ['C', 'Confirm'],
+                        ['X', 'Reject'],
+                        ['N', 'Next'],
+                      ].map(([key, label]) => (
+                        <div key={key} className="flex items-center gap-2">
+                          <kbd
+                            className="rounded-md border px-2 py-1 text-xs font-bold"
+                            style={{
+                              background: 'var(--surface)',
+                              borderColor: 'var(--border)',
+                              color: 'var(--text)',
+                            }}
+                          >
+                            {key}
+                          </kbd>
+                          <span>{label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </PageCard>
+                </>
+              )}
+            </div>
+
+            <div className="space-y-6">
+              <PageCard className="p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold">Pending Match Queue</h3>
+                    <p
+                      className="mt-1 text-xs"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      Remaining items analysts still need to resolve
+                    </p>
+                  </div>
+                  <span
+                    className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase"
+                    style={{
+                      background: 'var(--warning-soft)',
+                      color: 'var(--warning)',
+                    }}
+                  >
+                    {suggestedCandidates.length}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {suggestedCandidates.slice(0, 6).map((group) => {
+                    const active = currentGroup?.id === group.id
+                    const companyTitle = getGroupCompanyTitle(group)
+
+                    return (
+                      <button
+                        key={group.id}
+                        type="button"
+                        onClick={() => {
+                          const nextIndex = suggestedCandidates.findIndex(
+                            (g) => g.id === group.id
+                          )
+                          if (nextIndex >= 0) setCurrentIndex(nextIndex)
+                        }}
+                        className="w-full rounded-xl border p-3 text-left"
+                        style={{
+                          background: active ? 'var(--primary-soft)' : 'var(--surface-soft)',
+                          borderColor: active ? 'var(--primary)' : 'var(--border)',
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-bold">{companyTitle}</div>
+                            <div
+                              className="mt-1 truncate text-xs"
+                              style={{ color: 'var(--text-muted)' }}
+                            >
+                              {group.id}
+                            </div>
+                          </div>
+                          <span
+                            className="rounded-full px-2 py-1 text-[10px] font-semibold"
+                            style={{
+                              background: 'var(--surface)',
+                              color: 'var(--primary)',
+                            }}
+                          >
+                            {Math.round(group.confidence * 100)}%
+                          </span>
+                        </div>
+                      </button>
+                    )
+                  })}
+
+                  {suggestedCandidates.length === 0 && (
+                    <div
+                      className="rounded-xl border p-4 text-sm"
+                      style={{
+                        background: 'var(--surface-soft)',
+                        borderColor: 'var(--border)',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      No pending matches for this filter.
+                    </div>
+                  )}
                 </div>
               </PageCard>
-            </>
-          )}
+
+              <PageCard className="p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold">Completed Review</h3>
+                    <p
+                      className="mt-1 text-xs"
+                      style={{ color: 'var(--text-muted)' }}
+                    >
+                      Recently resolved groups in the same queue
+                    </p>
+                  </div>
+                  <span
+                    className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase"
+                    style={{
+                      background: 'var(--success-soft)',
+                      color: 'var(--success)',
+                    }}
+                  >
+                    {reviewedGroups.length}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {reviewedGroups.slice(0, 6).map((group) => {
+                    const statusStyles =
+                      group.status === 'confirmed'
+                        ? getToneStyles('success')
+                        : getToneStyles('danger')
+
+                    return (
+                      <div
+                        key={group.id}
+                        className="rounded-xl border p-3"
+                        style={{
+                          background: 'var(--surface-soft)',
+                          borderColor: 'var(--border)',
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-bold">
+                              {getGroupCompanyTitle(group)}
+                            </div>
+                            <div
+                              className="mt-1 text-xs"
+                              style={{ color: 'var(--text-muted)' }}
+                            >
+                              {group.id} · {group.records.length} records ·{' '}
+                              {Math.round(group.confidence * 100)}%
+                            </div>
+                          </div>
+                          <span
+                            className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase"
+                            style={{
+                              background: statusStyles.bg,
+                              color: statusStyles.color,
+                            }}
+                          >
+                            {group.status}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {reviewedGroups.length === 0 && (
+                    <div
+                      className="rounded-xl border p-4 text-sm"
+                      style={{
+                        background: 'var(--surface-soft)',
+                        borderColor: 'var(--border)',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      No completed reviews for this filter.
+                    </div>
+                  )}
+                </div>
+              </PageCard>
+            </div>
+          </div>
         </div>
 
-        {/* Reject modal */}
-        {showRejectModal && currentGroup ? (
+        {showRejectModal && currentGroup && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4">
             <div
               className="w-full max-w-[520px] rounded-2xl border"
@@ -628,11 +1033,9 @@ export default function ReviewPage() {
                   Select the reason for rejecting {currentGroup.id}.
                 </p>
               </div>
-
               <div className="space-y-2 p-6">
                 {rejectionReasons.map((reason) => {
                   const selected = selectedReason === reason
-
                   return (
                     <button
                       key={reason}
@@ -649,11 +1052,7 @@ export default function ReviewPage() {
                   )
                 })}
               </div>
-
-              <div
-                className="flex gap-3 border-t px-6 py-5"
-                style={{ borderColor: 'var(--border)' }}
-              >
+              <div className="flex gap-3 border-t px-6 py-5" style={{ borderColor: 'var(--border)' }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -669,7 +1068,6 @@ export default function ReviewPage() {
                 >
                   Cancel
                 </button>
-
                 <button
                   type="button"
                   onClick={handleReject}
@@ -682,10 +1080,9 @@ export default function ReviewPage() {
               </div>
             </div>
           </div>
-        ) : null}
+        )}
 
-        {/* Confirm modal */}
-        {showConfirmModal && currentGroup ? (
+        {showConfirmModal && currentGroup && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4">
             <div
               className="flex max-h-[90vh] w-full max-w-[920px] flex-col overflow-hidden rounded-2xl border"
@@ -700,13 +1097,15 @@ export default function ReviewPage() {
                   Confirm Match & Choose Golden Values
                 </h3>
                 <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
-                  Optionally choose which source should supply the canonical value for each field.
+                  Choose which source system should supply the canonical value for each
+                  field.
                 </p>
               </div>
 
               <div className="flex-1 overflow-y-auto p-6">
-                <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-4">
                   {[
+                    ['Company', currentCompanyTitle],
                     ['Group ID', currentGroup.id],
                     ['Confidence', `${Math.round(currentGroup.confidence * 100)}%`],
                     ['Records', String(currentGroup.records.length)],
@@ -719,7 +1118,10 @@ export default function ReviewPage() {
                         borderColor: 'var(--border)',
                       }}
                     >
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--text-muted)' }}>
+                      <div
+                        className="text-[10px] font-semibold uppercase tracking-[0.08em]"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
                         {label}
                       </div>
                       <div className="mt-2 text-sm font-bold">{value}</div>
@@ -727,7 +1129,13 @@ export default function ReviewPage() {
                   ))}
                 </div>
 
-                <div className="rounded-2xl border p-5" style={{ background: 'var(--surface-soft)', borderColor: 'var(--border)' }}>
+                <div
+                  className="rounded-2xl border p-5"
+                  style={{
+                    background: 'var(--surface-soft)',
+                    borderColor: 'var(--border)',
+                  }}
+                >
                   <div className="mb-4 flex items-center justify-between">
                     <h4 className="text-sm font-bold">Golden Record Values</h4>
                     <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -736,30 +1144,38 @@ export default function ReviewPage() {
                   </div>
 
                   <div className="space-y-6">
-                    {FIELDS.map((field) => {
+                    {DISPLAY_FIELDS.map((field) => {
                       const fieldValues = currentGroup.records
                         .map((record) => ({
-                          source: record.source,
-                          value: (record.fields[field] || '').toString().trim(),
+                          source: getSourceLabel(record),
+                          value: getRecordField(record, field).trim(),
                         }))
                         .filter((entry) => entry.value)
 
                       const uniqueValues = new Set(fieldValues.map((entry) => entry.value))
                       const hasConflict = uniqueValues.size > 1 && fieldValues.length > 1
                       const currentChoice =
-                        goldenOverrides[field] || getDefaultSourceForField(currentGroup, field) || ''
+                        goldenOverrides[field] ||
+                        getDefaultSourceForField(currentGroup, field) ||
+                        ''
 
                       if (!hasConflict && fieldValues.length === 0) return null
 
                       return (
                         <div key={field}>
                           <div className="mb-2 flex items-center gap-2">
-                            <span className="text-sm font-bold capitalize">{field}</span>
+                            <span className="text-sm font-bold capitalize">
+                              {field.replace(/_/g, ' ')}
+                            </span>
                             <span
                               className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase"
                               style={{
-                                background: hasConflict ? 'var(--warning-soft)' : 'var(--success-soft)',
-                                color: hasConflict ? 'var(--warning)' : 'var(--success)',
+                                background: hasConflict
+                                  ? 'var(--warning-soft)'
+                                  : 'var(--success-soft)',
+                                color: hasConflict
+                                  ? 'var(--warning)'
+                                  : 'var(--success)',
                               }}
                             >
                               {hasConflict ? 'Conflict' : 'All match'}
@@ -768,12 +1184,11 @@ export default function ReviewPage() {
 
                           {hasConflict ? (
                             <div className="grid gap-2 md:grid-cols-2">
-                              {fieldValues.map(({ source, value }) => {
+                              {fieldValues.map(({ source, value }, index) => {
                                 const selected = currentChoice === source
-
                                 return (
                                   <button
-                                    key={`${field}-${source}`}
+                                    key={`${field}-${source}-${index}`}
                                     type="button"
                                     onClick={() =>
                                       setGoldenOverrides((prev) => ({
@@ -783,11 +1198,18 @@ export default function ReviewPage() {
                                     }
                                     className="rounded-xl border p-4 text-left"
                                     style={{
-                                      background: selected ? 'var(--primary-soft)' : 'var(--surface)',
-                                      borderColor: selected ? 'var(--primary)' : 'var(--border)',
+                                      background: selected
+                                        ? 'var(--primary-soft)'
+                                        : 'var(--surface)',
+                                      borderColor: selected
+                                        ? 'var(--primary)'
+                                        : 'var(--border)',
                                     }}
                                   >
-                                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--primary)' }}>
+                                    <div
+                                      className="text-[10px] font-semibold uppercase tracking-[0.08em]"
+                                      style={{ color: 'var(--primary)' }}
+                                    >
                                       {source}
                                     </div>
                                     <div className="mt-2 text-sm font-medium">{value}</div>
@@ -813,10 +1235,7 @@ export default function ReviewPage() {
                 </div>
               </div>
 
-              <div
-                className="flex justify-end gap-3 border-t px-6 py-5"
-                style={{ borderColor: 'var(--border)' }}
-              >
+              <div className="flex justify-end gap-3 border-t px-6 py-5" style={{ borderColor: 'var(--border)' }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -832,178 +1251,20 @@ export default function ReviewPage() {
                 >
                   Cancel
                 </button>
-
                 <button
                   type="button"
                   onClick={handleConfirm}
                   className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
                   style={{ background: 'var(--success)' }}
                 >
-                  <Check size={15} />
-                  Confirm Match
+                  <Check size={15} /> Confirm Match
                 </button>
               </div>
             </div>
           </div>
-        ) : null}
+        )}
 
-        {/* Merge modal */}
-        {showMergeModal && currentGroup ? (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4">
-            <div
-              className="w-full max-w-[520px] rounded-2xl border p-6"
-              style={{
-                background: 'var(--surface)',
-                borderColor: 'var(--border)',
-                boxShadow: 'var(--shadow-lg)',
-              }}
-            >
-              <h3 className="tw-heading text-[24px] font-bold">Merge Records</h3>
-              <p className="mt-2 text-sm leading-6" style={{ color: 'var(--text-muted)' }}>
-                Merge the records in <strong>{currentGroup.id}</strong> into one resolved entity.
-              </p>
-
-              <div className="mt-5 rounded-xl border p-4" style={{ background: 'var(--surface-soft)', borderColor: 'var(--border)' }}>
-                <div className="text-sm font-semibold">Sources</div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {currentGroup.records.map((record) => (
-                    <span
-                      key={record.id}
-                      className="rounded-full px-3 py-1 text-xs font-semibold"
-                      style={{
-                        background: 'var(--primary-soft)',
-                        color: 'var(--primary)',
-                      }}
-                    >
-                      {record.source}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-5 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowMergeModal(false)}
-                  className="flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold"
-                  style={{
-                    background: 'var(--surface)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--text)',
-                  }}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleMerge}
-                  className="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-                  style={{ background: 'var(--primary)' }}
-                >
-                  Confirm Merge
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Split modal */}
-        {showSplitModal && currentGroup ? (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4">
-            <div
-              className="flex max-h-[90vh] w-full max-w-[640px] flex-col overflow-hidden rounded-2xl border"
-              style={{
-                background: 'var(--surface)',
-                borderColor: 'var(--border)',
-                boxShadow: 'var(--shadow-lg)',
-              }}
-            >
-              <div className="border-b px-6 py-5" style={{ borderColor: 'var(--border)' }}>
-                <h3 className="tw-heading text-[24px] font-bold">Split Match</h3>
-                <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
-                  Select which records should be separated into their own entities.
-                </p>
-              </div>
-
-              <div className="flex-1 space-y-2 overflow-y-auto p-6">
-                {currentGroup.records.map((record, idx) => {
-                  const recordId = `${record.source}-${idx}`
-                  const checked = selectedRecordsToSplit.has(recordId)
-
-                  return (
-                    <button
-                      key={recordId}
-                      type="button"
-                      onClick={() => {
-                        setSelectedRecordsToSplit((prev) => {
-                          const next = new Set(prev)
-                          if (next.has(recordId)) next.delete(recordId)
-                          else next.add(recordId)
-                          return next
-                        })
-                      }}
-                      className="flex w-full items-start gap-3 rounded-xl border px-4 py-3 text-left"
-                      style={{
-                        background: checked ? 'var(--primary-soft)' : 'var(--surface-soft)',
-                        borderColor: checked ? 'var(--primary)' : 'var(--border)',
-                      }}
-                    >
-                      <div
-                        className="mt-0.5 h-4 w-4 rounded-sm border"
-                        style={{
-                          background: checked ? 'var(--primary)' : 'transparent',
-                          borderColor: checked ? 'var(--primary)' : 'var(--text-muted)',
-                        }}
-                      />
-                      <div>
-                        <div className="text-sm font-bold">
-                          {record.source}: {record.fields.name || 'Unknown'}
-                        </div>
-                        <div className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
-                          {record.fields.vat || 'N/A'} · {record.fields.country || 'N/A'}
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-
-              <div
-                className="flex gap-3 border-t px-6 py-5"
-                style={{ borderColor: 'var(--border)' }}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSplitModal(false)
-                    setSelectedRecordsToSplit(new Set())
-                  }}
-                  className="flex-1 rounded-xl border px-4 py-2.5 text-sm font-semibold"
-                  style={{
-                    background: 'var(--surface)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--text)',
-                  }}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="button"
-                  disabled={selectedRecordsToSplit.size === 0}
-                  onClick={handleSplit}
-                  className="flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                  style={{ background: 'var(--warning)' }}
-                >
-                  Split Selected ({selectedRecordsToSplit.size})
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {toast ? (
+        {toast && (
           <div
             className="fixed bottom-8 right-8 z-[80] rounded-xl px-5 py-3 text-[14px] font-semibold text-white"
             style={{
@@ -1013,7 +1274,7 @@ export default function ReviewPage() {
           >
             {toast.msg}
           </div>
-        ) : null}
+        )}
 
         <ExplainableAIPanel
           isOpen={showExplainableAI}
