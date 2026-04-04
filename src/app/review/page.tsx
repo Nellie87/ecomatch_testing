@@ -725,28 +725,7 @@ export default function ReviewPage() {
                               )
                             })}
 
-                            {record.raw_payload_json && (
-                              <details
-                                className="rounded-xl border p-3"
-                                style={{
-                                  background: 'var(--surface-soft)',
-                                  borderColor: 'var(--border)',
-                                }}
-                              >
-                                <summary
-                                  className="cursor-pointer text-[11px] font-semibold uppercase tracking-[0.08em]"
-                                  style={{ color: 'var(--text-muted)' }}
-                                >
-                                  Raw payload
-                                </summary>
-                                <pre
-                                  className="mt-3 overflow-x-auto text-[11px]"
-                                  style={{ color: 'var(--text-muted)' }}
-                                >
-                                  {JSON.stringify(record.raw_payload_json, null, 2)}
-                                </pre>
-                              </details>
-                            )}
+                           
                           </div>
                         </div>
                       )
