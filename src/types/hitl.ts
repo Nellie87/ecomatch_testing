@@ -2,8 +2,8 @@ export type MatchStatus =
   | 'suggested'
   | 'confirmed'
   | 'rejected'
-  | 'merged'
-  | 'split'
+  // | 'merged'
+  // | 'split'
 
 export type MatchReasonStrength = 'strong' | 'medium' | 'weak'
 

@@ -1,8 +1,10 @@
 'use client'
 
 import { AppShell } from '@/components/layout/app-shell'
+import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { Plus, Edit2, Trash2 } from 'lucide-react'
+import { Plus, Edit2, Trash2, ArrowRight } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
 import { REVIEWERS, ROLE_PERMISSIONS, ACTIVITY_LOG } from '@/lib/review-data'
 
 type ReviewerStatus = 'online' | 'away' | 'offline'
@@ -223,10 +225,12 @@ function ActionButton({
   children,
   tone = 'neutral',
   onClick,
+  disabled = false,
 }: {
   children: React.ReactNode
   tone?: 'neutral' | 'danger' | 'primary'
   onClick?: () => void
+  disabled?: boolean
 }) {
   const styles = {
     neutral: {
@@ -252,7 +256,8 @@ function ActionButton({
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors"
+      disabled={disabled}
+      className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       style={{
         background: style.bg,
         borderColor: style.border,
@@ -267,15 +272,18 @@ function ActionButton({
 function Toggle({
   on,
   onChange,
+  disabled = false,
 }: {
   on: boolean
   onChange: () => void
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onChange}
-      className="relative inline-flex h-7 w-12 items-center rounded-full transition-all"
+      disabled={disabled}
+      className="relative inline-flex h-7 w-12 items-center rounded-full transition-all disabled:cursor-not-allowed disabled:opacity-50"
       style={{
         background: on ? 'var(--primary)' : 'var(--surface-soft)',
         border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
@@ -295,15 +303,22 @@ function Toggle({
 }
 
 export default function ManagementPage() {
+  const { user, isLoading, canAccess, can } = useAuth()
+
   const [reviewers, setReviewers] = useState<ReviewerItem[]>(
     REVIEWERS as ReviewerItem[]
   )
   const [settings, setSettings] = useState<SettingItem[]>(SETTINGS_DEFAULT)
 
-  const rolePermissions = ROLE_PERMISSIONS as RolePermissionItem[]
+  const rolePermissions = ROLE_PERMISSIONS as unknown as RolePermissionItem[]
   const activityLog = ACTIVITY_LOG as ActivityItem[]
 
+  const canManageUsers = can('action:manage_users')
+  const canToggleSettings = can('action:toggle_settings')
+
   function toggleSetting(key: string) {
+    if (!canToggleSettings) return
+
     setSettings((prev) =>
       prev.map((item) =>
         item.key === key ? { ...item, on: !item.on } : item
@@ -312,6 +327,7 @@ export default function ManagementPage() {
   }
 
   function removeReviewer(id: string) {
+    if (!canManageUsers) return
     setReviewers((prev) => prev.filter((item) => item.id !== id))
   }
 
@@ -348,6 +364,41 @@ export default function ManagementPage() {
     []
   )
 
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="tw-page">
+          <PageCard className="p-10 text-center">
+            <div className="text-lg font-semibold">Loading management...</div>
+          </PageCard>
+        </div>
+      </AppShell>
+    )
+  }
+
+  if (!user || !canAccess('management')) {
+    return (
+      <AppShell>
+        <div className="tw-page">
+          <PageCard className="p-10 text-center">
+            <h1 className="text-2xl font-bold">Unauthorized</h1>
+            <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+              You do not have access to management.
+            </p>
+            <Link
+              href="/review"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+              style={{ background: 'var(--primary)' }}
+            >
+              Go to Review
+              <ArrowRight size={15} />
+            </Link>
+          </PageCard>
+        </div>
+      </AppShell>
+    )
+  }
+
   return (
     <AppShell>
       <div className="tw-page">
@@ -365,11 +416,26 @@ export default function ManagementPage() {
               </p>
             </div>
 
-            <ActionButton tone="primary">
+            <ActionButton tone="primary" disabled={!canManageUsers}>
               <Plus size={14} />
               Add User
             </ActionButton>
           </div>
+
+          {!canManageUsers && !canToggleSettings && (
+            <PageCard className="p-4">
+              <div
+                className="rounded-xl px-4 py-3 text-sm"
+                style={{
+                  background: 'var(--surface-soft)',
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                You can view management details, but you do not have permission to modify users or settings.
+              </div>
+            </PageCard>
+          )}
 
           <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
             <PageCard className="p-5 md:p-6 2xl:col-span-2">
@@ -401,8 +467,9 @@ export default function ManagementPage() {
 
                 <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                   {reviewers.map((reviewer) => {
-const status =
-  statusInfo[reviewer.status as keyof typeof statusInfo] ?? statusInfo.offline
+                    const status =
+                      statusInfo[reviewer.status as keyof typeof statusInfo] ?? statusInfo.offline
+
                     return (
                       <div
                         key={reviewer.id}
@@ -463,13 +530,14 @@ const status =
                         </div>
 
                         <div className="flex flex-wrap gap-2">
-                          <ActionButton tone="neutral">
+                          <ActionButton tone="neutral" disabled={!canManageUsers}>
                             <Edit2 size={12} />
                             Edit
                           </ActionButton>
                           <ActionButton
                             tone="danger"
                             onClick={() => removeReviewer(reviewer.id)}
+                            disabled={!canManageUsers}
                           >
                             <Trash2 size={12} />
                             Remove
@@ -550,6 +618,7 @@ const status =
                     <Toggle
                       on={setting.on}
                       onChange={() => toggleSetting(setting.key)}
+                      disabled={!canToggleSettings}
                     />
                   </div>
                 ))}

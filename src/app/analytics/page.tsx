@@ -1,8 +1,10 @@
 'use client'
 
 import { AppShell } from '@/components/layout/app-shell'
-import { Download, Share2, FileText } from 'lucide-react'
+import Link from 'next/link'
+import { Download, Share2, FileText, ArrowRight } from 'lucide-react'
 import { useMemo } from 'react'
+import { useAuth } from '@/context/AuthContext'
 import { REVIEWERS } from '@/lib/review-data'
 import {
   ResponsiveContainer,
@@ -230,6 +232,8 @@ function MatrixCell({
 }
 
 export default function AnalyticsPage() {
+  const { user, isLoading, canAccess, can } = useAuth()
+
   const precision = (
     (CONFUSION.tp / (CONFUSION.tp + CONFUSION.fp)) *
     100
@@ -262,6 +266,43 @@ export default function AnalyticsPage() {
 
   const reviewers: ReviewerAnalytics[] = REVIEWERS as ReviewerAnalytics[]
 
+  const canExport = can('action:export')
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="tw-page">
+          <PageCard className="p-10 text-center">
+            <div className="text-lg font-semibold">Loading analytics...</div>
+          </PageCard>
+        </div>
+      </AppShell>
+    )
+  }
+
+  if (!user || !canAccess('analytics')) {
+    return (
+      <AppShell>
+        <div className="tw-page">
+          <PageCard className="p-10 text-center">
+            <h1 className="text-2xl font-bold">Unauthorized</h1>
+            <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+              You do not have access to analytics.
+            </p>
+            <Link
+              href="/review"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+              style={{ background: 'var(--primary)' }}
+            >
+              Go to Review
+              <ArrowRight size={15} />
+            </Link>
+          </PageCard>
+        </div>
+      </AppShell>
+    )
+  }
+
   return (
     <AppShell>
       <div className="tw-page">
@@ -288,7 +329,8 @@ export default function AnalyticsPage() {
                 <button
                   key={label}
                   type="button"
-                  className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors"
+                  disabled={!canExport}
+                  className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   style={{
                     background: 'var(--surface)',
                     borderColor: 'var(--border)',

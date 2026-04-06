@@ -3,6 +3,7 @@
 import { AppShell } from '@/components/layout/app-shell'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { useAuth } from '@/context/AuthContext'
 import {
   Activity,
   CheckCircle2,
@@ -188,6 +189,7 @@ function StatPanel({
 }
 
 export default function AdminPage() {
+  const { user, isLoading, canAccess } = useAuth()
   const [range, setRange] = useState<FilterOption>('7 days')
 
   const metrics = useMemo(() => {
@@ -198,7 +200,8 @@ export default function AdminPage() {
     ).length
 
     const confirmed = MATCH_GROUPS.filter(
-      (group) => group.status === 'confirmed' || group.status === 'merged'
+      (group) => group.status === 'confirmed' 
+      // || group.status === 'merged'
     ).length
 
     const rejected = MATCH_GROUPS.filter(
@@ -257,6 +260,41 @@ export default function AdminPage() {
     ],
     [metrics]
   )
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="tw-page">
+          <PageCard className="p-10 text-center">
+            <div className="text-lg font-semibold">Loading dashboard...</div>
+          </PageCard>
+        </div>
+      </AppShell>
+    )
+  }
+
+  if (!user || !canAccess('admin')) {
+    return (
+      <AppShell>
+        <div className="tw-page">
+          <PageCard className="p-10 text-center">
+            <h1 className="text-2xl font-bold">Unauthorized</h1>
+            <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+              You do not have access to the admin dashboard.
+            </p>
+            <Link
+              href="/review"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+              style={{ background: 'var(--primary)' }}
+            >
+              Go to Review
+              <ArrowRight size={15} />
+            </Link>
+          </PageCard>
+        </div>
+      </AppShell>
+    )
+  }
 
   return (
     <AppShell>

@@ -5,6 +5,8 @@ import { AppShell } from '@/components/layout/app-shell'
 import { ExplainableAIPanel } from '@/components/review/ExplainableAIPanel'
 import { MATCH_GROUPS, rejectionReasons } from '@/lib/review-data'
 import type { MatchCandidateGroup, SourceRecord } from '@/types/hitl'
+import { useAuth } from '@/context/AuthContext'
+
 import {
   Check,
   X,
@@ -16,6 +18,8 @@ import {
   AlertTriangle,
   GitCompareArrows,
   Layers3,
+  Eye,
+  Lock,
 } from 'lucide-react'
 
 const DISPLAY_FIELDS = [
@@ -84,17 +88,11 @@ function ConfidenceRing({ value }: { value: number }) {
           strokeLinecap="round"
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-sm font-bold" style={{ color }}>
-          {pct}%
-        </span>
-        <span
-          className="text-[9px] uppercase tracking-[0.08em]"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          conf.
-        </span>
-      </div>
+<div className="absolute inset-0 flex flex-col items-center justify-center">
+  <span className="text-sm font-bold" style={{ color }}>
+    {pct}%
+  </span>
+</div>
     </div>
   )
 }
@@ -252,6 +250,8 @@ function getGroupCompanyTitle(group: MatchCandidateGroup | null) {
 }
 
 export default function ReviewPage() {
+  const { user, isLoading, can } = useAuth()
+
   const [groups, setGroups] = useState<MatchCandidateGroup[]>(MATCH_GROUPS)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [showExplainableAI, setShowExplainableAI] = useState(false)
@@ -262,6 +262,10 @@ export default function ReviewPage() {
   const [goldenOverrides, setGoldenOverrides] = useState<Record<string, string>>({})
   const [toast, setToast] = useState<{ msg: string; color: string } | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+
+  const canConfirm = can('action:confirm')
+  const canReject = can('action:reject')
+  const isReadOnly = !canConfirm && !canReject
 
   const filteredGroups = useMemo(() => {
     if (!searchTerm.trim()) return groups
@@ -339,7 +343,7 @@ export default function ReviewPage() {
   }, [suggestedCandidates.length])
 
   const handleReject = useCallback(() => {
-    if (!currentGroup || !selectedReason) return
+    if (!currentGroup || !selectedReason || !canReject) return
 
     setGroups((prev) =>
       prev.map((group) =>
@@ -349,10 +353,10 @@ export default function ReviewPage() {
     setShowRejectModal(false)
     setSelectedReason('')
     showToast(`Group ${currentGroup.id} rejected`, 'var(--danger)')
-  }, [currentGroup, selectedReason, showToast])
+  }, [currentGroup, selectedReason, canReject, showToast])
 
   const handleConfirm = useCallback(() => {
-    if (!currentGroup) return
+    if (!currentGroup || !canConfirm) return
 
     setGroups((prev) =>
       prev.map((group) =>
@@ -364,7 +368,7 @@ export default function ReviewPage() {
     setShowConfirmModal(false)
     setGoldenOverrides({})
     showToast(`Group ${currentGroup.id} confirmed`, 'var(--success)')
-  }, [currentGroup, goldenOverrides, showToast])
+  }, [currentGroup, goldenOverrides, canConfirm, showToast])
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -380,10 +384,12 @@ export default function ReviewPage() {
 
       switch (e.key.toLowerCase()) {
         case 'c':
+          if (!canConfirm) return
           e.preventDefault()
           if (currentGroup) setShowConfirmModal(true)
           break
         case 'x':
+          if (!canReject) return
           e.preventDefault()
           if (currentGroup) setShowRejectModal(true)
           break
@@ -397,13 +403,40 @@ export default function ReviewPage() {
 
     window.addEventListener('keydown', handleKeyPress)
     return () => window.removeEventListener('keydown', handleKeyPress)
-  }, [currentGroup, handleNext, showConfirmModal, showRejectModal])
+  }, [currentGroup, handleNext, showConfirmModal, showRejectModal, canConfirm, canReject])
 
   useEffect(() => {
     if (currentIndex >= suggestedCandidates.length && suggestedCandidates.length > 0) {
       setCurrentIndex(0)
     }
   }, [suggestedCandidates.length, currentIndex])
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="tw-page">
+          <PageCard className="p-10 text-center">
+            <div className="text-lg font-semibold">Loading review workspace...</div>
+          </PageCard>
+        </div>
+      </AppShell>
+    )
+  }
+
+  if (!user) {
+    return (
+      <AppShell>
+        <div className="tw-page">
+          <PageCard className="p-10 text-center">
+            <div className="text-lg font-semibold">No authenticated user found.</div>
+            <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+              Please sign in to access the review queue.
+            </p>
+          </PageCard>
+        </div>
+      </AppShell>
+    )
+  }
 
   return (
     <AppShell>
@@ -422,7 +455,56 @@ export default function ReviewPage() {
                 and decide whether to confirm or reject.
               </p>
             </div>
+
+            <div className="flex flex-wrap gap-2">
+              <span
+                className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                style={{
+                  background: 'var(--surface-soft)',
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                Role: {user.role}
+              </span>
+
+              {isReadOnly && (
+                <span
+                  className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
+                  style={{
+                    background: 'var(--warning-soft)',
+                    color: 'var(--warning)',
+                  }}
+                >
+                  <Eye size={13} />
+                  View only
+                </span>
+              )}
+            </div>
           </div>
+
+          {isReadOnly && (
+            <PageCard className="p-4">
+              <div className="flex items-start gap-3">
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                  style={{
+                    background: 'var(--warning-soft)',
+                    color: 'var(--warning)',
+                  }}
+                >
+                  <Lock size={18} />
+                </div>
+                <div>
+                  <div className="text-sm font-bold">Read-only review access</div>
+                  <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
+                    You can inspect candidate matches and explainability, but only a
+                    Reviewer, Senior Reviewer, or Admin can confirm or reject records.
+                  </p>
+                </div>
+              </div>
+            </PageCard>
+          )}
 
           <PageCard className="p-4 md:p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -724,8 +806,6 @@ export default function ReviewPage() {
                                 </div>
                               )
                             })}
-
-                           
                           </div>
                         </div>
                       )
@@ -772,20 +852,26 @@ export default function ReviewPage() {
                     </button>
 
                     <div className="flex flex-wrap gap-2.5">
-                      <button
-                        onClick={() => setShowConfirmModal(true)}
-                        className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-                        style={{ background: 'var(--success)' }}
-                      >
-                        <Check size={15} /> Confirm
-                      </button>
-                      <button
-                        onClick={() => setShowRejectModal(true)}
-                        className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
-                        style={{ background: 'var(--danger)' }}
-                      >
-                        <X size={15} /> Reject
-                      </button>
+                      {canConfirm ? (
+                        <button
+                          onClick={() => setShowConfirmModal(true)}
+                          className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+                          style={{ background: 'var(--success)' }}
+                        >
+                          <Check size={15} /> Confirm
+                        </button>
+                      ) : null}
+
+                      {canReject ? (
+                        <button
+                          onClick={() => setShowRejectModal(true)}
+                          className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+                          style={{ background: 'var(--danger)' }}
+                        >
+                          <X size={15} /> Reject
+                        </button>
+                      ) : null}
+
                       <button
                         onClick={handleNext}
                         className="inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold"
@@ -800,17 +886,28 @@ export default function ReviewPage() {
                     </div>
                   </div>
 
+                  {isReadOnly && (
+                    <PageCard className="p-4">
+                      <div
+                        className="rounded-xl px-4 py-3 text-sm"
+                        style={{
+                          background: 'var(--surface-soft)',
+                          color: 'var(--text-muted)',
+                          border: '1px solid var(--border)',
+                        }}
+                      >
+                        View only — contact your reviewer to confirm or reject this match.
+                      </div>
+                    </PageCard>
+                  )}
+
                   <PageCard className="p-4">
                     <div
                       className="flex flex-wrap items-center justify-center gap-6 text-sm"
                       style={{ color: 'var(--text-muted)' }}
                     >
-                      {[
-                        ['C', 'Confirm'],
-                        ['X', 'Reject'],
-                        ['N', 'Next'],
-                      ].map(([key, label]) => (
-                        <div key={key} className="flex items-center gap-2">
+                      {canConfirm && (
+                        <div className="flex items-center gap-2">
                           <kbd
                             className="rounded-md border px-2 py-1 text-xs font-bold"
                             style={{
@@ -819,11 +916,41 @@ export default function ReviewPage() {
                               color: 'var(--text)',
                             }}
                           >
-                            {key}
+                            C
                           </kbd>
-                          <span>{label}</span>
+                          <span>Confirm</span>
                         </div>
-                      ))}
+                      )}
+
+                      {canReject && (
+                        <div className="flex items-center gap-2">
+                          <kbd
+                            className="rounded-md border px-2 py-1 text-xs font-bold"
+                            style={{
+                              background: 'var(--surface)',
+                              borderColor: 'var(--border)',
+                              color: 'var(--text)',
+                            }}
+                          >
+                            X
+                          </kbd>
+                          <span>Reject</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <kbd
+                          className="rounded-md border px-2 py-1 text-xs font-bold"
+                          style={{
+                            background: 'var(--surface)',
+                            borderColor: 'var(--border)',
+                            color: 'var(--text)',
+                          }}
+                        >
+                          N
+                        </kbd>
+                        <span>Next</span>
+                      </div>
                     </div>
                   </PageCard>
                 </>
@@ -996,7 +1123,7 @@ export default function ReviewPage() {
           </div>
         </div>
 
-        {showRejectModal && currentGroup && (
+        {showRejectModal && currentGroup && canReject && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4">
             <div
               className="w-full max-w-[520px] rounded-2xl border"
@@ -1061,7 +1188,7 @@ export default function ReviewPage() {
           </div>
         )}
 
-        {showConfirmModal && currentGroup && (
+        {showConfirmModal && currentGroup && canConfirm && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4">
             <div
               className="flex max-h-[90vh] w-full max-w-[920px] flex-col overflow-hidden rounded-2xl border"
