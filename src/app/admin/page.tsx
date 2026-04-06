@@ -1,114 +1,776 @@
 'use client'
-import Link from 'next/link'
-import { Activity, CheckCircle, XCircle, Clock, ArrowUpRight } from 'lucide-react'
-import { Card, StatCard } from '@/components/ui'
-import { TREND_DATA, QUEUE_ITEMS } from '@/lib/data'
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend
-} from 'recharts'
 
-const PIE_DATA = [
-  { name: 'Confirmed', value: 71, color: '#1AA39A' },
-  { name: 'Rejected',  value: 18, color: '#E8452A' },
-  { name: 'Pending',   value: 11, color: '#F0A500' },
+import { AppShell } from '@/components/layout/app-shell'
+import Link from 'next/link'
+import { useMemo, useState } from 'react'
+import { useAuth } from '@/context/AuthContext'
+import {
+  Activity,
+  CheckCircle2,
+  XCircle,
+  Clock3,
+  ArrowRight,
+  AlertTriangle,
+  Users,
+  ChevronRight,
+  MoonStar,
+} from 'lucide-react'
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts'
+import { MATCH_GROUPS } from '@/lib/review-data'
+
+const TREND_DATA = [
+  { date: 'Mon', precision: 0.82, recall: 0.76 },
+  { date: 'Tue', precision: 0.84, recall: 0.79 },
+  { date: 'Wed', precision: 0.86, recall: 0.81 },
+  { date: 'Thu', precision: 0.88, recall: 0.84 },
+  { date: 'Fri', precision: 0.9, recall: 0.86 },
+  { date: 'Sat', precision: 0.91, recall: 0.88 },
 ]
 
-export default function AdminPage() {
-  const pending = QUEUE_ITEMS.filter(q => q.status === 'pending').length
+const REVIEWER_WORKLOAD = [
+  { name: 'Elen Axis', assigned: 12, completedToday: 8, avgTime: '2m 14s' },
+  { name: 'Marcus Voss', assigned: 9, completedToday: 7, avgTime: '2m 48s' },
+  { name: 'Amina Noor', assigned: 14, completedToday: 10, avgTime: '1m 56s' },
+]
+
+const ALERTS = [
+  {
+    title: 'Low-confidence queue is rising',
+    description: 'Candidate groups below 65% confidence need manual review.',
+    tone: 'warning',
+  },
+  {
+    title: 'Reviewer imbalance detected',
+    description: 'Amina Noor currently has more assigned cases than average.',
+    tone: 'default',
+  },
+  {
+    title: 'Precision trend improving',
+    description: 'Model precision has increased across the last checkpoints.',
+    tone: 'success',
+  },
+] as const
+
+const FILTER_OPTIONS = ['Today', '7 days', '30 days'] as const
+type FilterOption = (typeof FILTER_OPTIONS)[number]
+
+function PageCard({
+  children,
+  className = '',
+  style,
+}: {
+  children: React.ReactNode
+  className?: string
+  style?: React.CSSProperties
+}) {
+  return (
+    <section
+      className={`rounded-2xl border ${className}`}
+      style={{
+        background: 'var(--surface)',
+        borderColor: 'var(--border)',
+        boxShadow: 'var(--shadow-md)',
+        ...style,
+      }}
+    >
+      {children}
+    </section>
+  )
+}
+
+function StatPanel({
+  title,
+  value,
+  meta,
+  icon,
+  tone = 'default',
+}: {
+  title: string
+  value: number | string
+  meta?: string
+  icon: React.ReactNode
+  tone?: 'default' | 'success' | 'warning' | 'danger'
+}) {
+  const toneMap = {
+    default: {
+      cardBg: 'color-mix(in srgb, var(--primary) 8%, white)',
+      cardBorder: 'color-mix(in srgb, var(--primary) 18%, var(--border))',
+      iconBg: 'color-mix(in srgb, var(--primary) 14%, white)',
+      iconColor: 'var(--primary)',
+      valueColor: 'var(--primary)',
+      metaColor: 'color-mix(in srgb, var(--primary) 55%, var(--text-muted))',
+      titleColor: 'color-mix(in srgb, var(--primary) 60%, var(--text-muted))',
+    },
+    success: {
+      cardBg: 'color-mix(in srgb, var(--success) 9%, white)',
+      cardBorder: 'color-mix(in srgb, var(--success) 20%, var(--border))',
+      iconBg: 'color-mix(in srgb, var(--success) 16%, white)',
+      iconColor: 'var(--success)',
+      valueColor: 'var(--success)',
+      metaColor: 'color-mix(in srgb, var(--success) 55%, var(--text-muted))',
+      titleColor: 'color-mix(in srgb, var(--success) 60%, var(--text-muted))',
+    },
+    warning: {
+      cardBg: 'color-mix(in srgb, var(--warning) 10%, white)',
+      cardBorder: 'color-mix(in srgb, var(--warning) 24%, var(--border))',
+      iconBg: 'color-mix(in srgb, var(--warning) 18%, white)',
+      iconColor: 'var(--warning)',
+      valueColor: 'var(--warning)',
+      metaColor: 'color-mix(in srgb, var(--warning) 58%, var(--text-muted))',
+      titleColor: 'color-mix(in srgb, var(--warning) 60%, var(--text-muted))',
+    },
+    danger: {
+      cardBg: 'color-mix(in srgb, var(--danger) 8%, white)',
+      cardBorder: 'color-mix(in srgb, var(--danger) 20%, var(--border))',
+      iconBg: 'color-mix(in srgb, var(--danger) 16%, white)',
+      iconColor: 'var(--danger)',
+      valueColor: 'var(--danger)',
+      metaColor: 'color-mix(in srgb, var(--danger) 55%, var(--text-muted))',
+      titleColor: 'color-mix(in srgb, var(--danger) 58%, var(--text-muted))',
+    },
+  }
+
+  const currentTone = toneMap[tone]
 
   return (
-    <div>
-      <div className="flex items-end justify-between mb-7">
-        <div>
-          <h1 className="font-syne text-[26px] font-black tracking-tight">Admin Dashboard</h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>High-level overview of system performance and reviewer activity</p>
+    <PageCard
+      className="p-5 transition-colors"
+      style={{
+        background: currentTone.cardBg,
+        borderColor: currentTone.cardBorder,
+      }}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p
+            className="text-[12px] font-semibold uppercase tracking-[0.08em]"
+            style={{ color: currentTone.titleColor }}
+          >
+            {title}
+          </p>
+
+          <h3
+            className="tw-heading mt-3 text-3xl font-bold"
+            style={{ color: currentTone.valueColor }}
+          >
+            {value}
+          </h3>
+
+          {meta ? (
+            <p className="mt-2 text-sm" style={{ color: currentTone.metaColor }}>
+              {meta}
+            </p>
+          ) : null}
         </div>
-        <Link href="/review">
-          <span className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110"
-            style={{ background: 'linear-gradient(135deg,var(--coral),var(--coral-dark))', boxShadow:'0 4px 14px rgba(232,69,42,0.35)' }}>
-            Review Queue <ArrowUpRight size={15} />
-          </span>
-        </Link>
-      </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-4 gap-5 mb-6">
-        <StatCard title="Total Reviewed" value={45} sub="of 200 records" delay="delay-1"
-          gradient="linear-gradient(135deg,#1A2B4A,#0F1C32)" shadow="0 8px 30px rgba(15,28,50,0.6)"
-          icon={<Activity size={21} color="white" />} />
-        <StatCard title="Confirmed Matches" value={32} badge="71%" delay="delay-2"
-          gradient="linear-gradient(135deg,#1AA39A,#0e7a74)" shadow="0 8px 30px rgba(26,163,154,0.35)"
-          icon={<CheckCircle size={21} color="white" />} />
-        <StatCard title="Rejected Matches" value={8} badge="18%" delay="delay-3"
-          gradient="linear-gradient(135deg,#E8452A,#C73520)" shadow="0 8px 30px rgba(232,69,42,0.35)"
-          icon={<XCircle size={21} color="white" />} />
-        <StatCard title="Needs Review" value={pending} sub="awaiting decision" delay="delay-4"
-          gradient="linear-gradient(135deg,#F0A500,#c47f00)" shadow="0 8px 30px rgba(240,165,0,0.35)"
-          icon={<Clock size={21} color="white" />} />
+        <div
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+          style={{
+            background: currentTone.iconBg,
+            color: currentTone.iconColor,
+          }}
+        >
+          {icon}
+        </div>
       </div>
+    </PageCard>
+  )
+}
 
-      {/* Charts row */}
-      <div className="grid grid-cols-[1fr_380px] gap-5">
-        {/* Line chart */}
-        <Card>
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <h2 className="font-syne text-[16px] font-bold">Model Performance Trends</h2>
-              <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Precision &amp; Recall over time</p>
-            </div>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
-              style={{ background:'rgba(26,163,154,0.15)', color:'var(--teal-light)', border:'1px solid rgba(26,163,154,0.3)' }}>
-              ↗ Improving
-            </span>
-          </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={TREND_DATA} margin={{ top:5, right:10, left:-20, bottom:5 }}>
-              <CartesianGrid strokeDasharray="4 4" stroke="rgba(255,255,255,0.06)" />
-              <XAxis dataKey="date" tick={{ fill:'#8A9BBB', fontSize:11 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0.7,1.0]} tick={{ fill:'#8A9BBB', fontSize:11 }} axisLine={false} tickLine={false} tickFormatter={v => v.toFixed(2)} />
-              <Tooltip contentStyle={{ background:'#1A2B4A', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, color:'#fff', fontSize:12 }}
-                labelStyle={{ color:'#8A9BBB' }} />
-              <Line type="monotone" dataKey="precision" stroke="var(--coral)" strokeWidth={2.5} dot={{ fill:'var(--coral)', r:4, strokeWidth:2, stroke:'#0F1C32' }} name="Precision" />
-              <Line type="monotone" dataKey="recall"    stroke="var(--teal-light)" strokeWidth={2.5} dot={{ fill:'var(--teal-light)', r:4, strokeWidth:2, stroke:'#0F1C32' }} name="Recall" />
-            </LineChart>
-          </ResponsiveContainer>
-          <div className="flex gap-5 mt-2">
-            {[['var(--coral)','Precision'],['var(--teal-light)','Recall']].map(([c,l]) => (
-              <div key={l} className="flex items-center gap-2 text-[13px]" style={{ color:'var(--text-dim)' }}>
-                <div className="w-2.5 h-2.5 rounded-full" style={{ background: c }} />
-                {l}
+export default function AdminPage() {
+  const { user, isLoading, canAccess } = useAuth()
+  const [range, setRange] = useState<FilterOption>('7 days')
+
+  const metrics = useMemo(() => {
+    const total = MATCH_GROUPS.length
+
+    const pending = MATCH_GROUPS.filter(
+      (group) => group.status === 'suggested'
+    ).length
+
+    const confirmed = MATCH_GROUPS.filter(
+      (group) => group.status === 'confirmed' 
+      // || group.status === 'merged'
+    ).length
+
+    const rejected = MATCH_GROUPS.filter(
+      (group) => group.status === 'rejected'
+    ).length
+
+    const reviewed = confirmed + rejected
+
+    const highConfidence = MATCH_GROUPS.filter(
+      (group) => group.confidence >= 0.9
+    ).length
+
+    const mediumConfidence = MATCH_GROUPS.filter(
+      (group) => group.confidence >= 0.75 && group.confidence < 0.9
+    ).length
+
+    const lowConfidence = MATCH_GROUPS.filter(
+      (group) => group.confidence < 0.75
+    ).length
+
+    return {
+      total,
+      pending,
+      confirmed,
+      rejected,
+      reviewed,
+      highConfidence,
+      mediumConfidence,
+      lowConfidence,
+    }
+  }, [])
+
+  const pieData = useMemo(
+    () => [
+      {
+        name: 'Confirmed',
+        value: metrics.total
+          ? Math.round((metrics.confirmed / metrics.total) * 100)
+          : 0,
+        color: 'var(--success)',
+      },
+      {
+        name: 'Rejected',
+        value: metrics.total
+          ? Math.round((metrics.rejected / metrics.total) * 100)
+          : 0,
+        color: 'var(--danger)',
+      },
+      {
+        name: 'Pending',
+        value: metrics.total
+          ? Math.round((metrics.pending / metrics.total) * 100)
+          : 0,
+        color: 'var(--warning)',
+      },
+    ],
+    [metrics]
+  )
+
+  if (isLoading) {
+    return (
+      <AppShell>
+        <div className="tw-page">
+          <PageCard className="p-10 text-center">
+            <div className="text-lg font-semibold">Loading dashboard...</div>
+          </PageCard>
+        </div>
+      </AppShell>
+    )
+  }
+
+  if (!user || !canAccess('admin')) {
+    return (
+      <AppShell>
+        <div className="tw-page">
+          <PageCard className="p-10 text-center">
+            <h1 className="text-2xl font-bold">Unauthorized</h1>
+            <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+              You do not have access to the admin dashboard.
+            </p>
+            <Link
+              href="/review"
+              className="mt-5 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white"
+              style={{ background: 'var(--primary)' }}
+            >
+              Go to Review
+              <ArrowRight size={15} />
+            </Link>
+          </PageCard>
+        </div>
+      </AppShell>
+    )
+  }
+
+  return (
+    <AppShell>
+      <div className="tw-page">
+        <div className="mx-auto w-full max-w-none">
+          <div className="space-y-6">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <h1 className="tw-heading text-[34px] font-bold leading-none md:text-[42px]">
+                  Admin Dashboard
+                </h1>
+                <p
+                  className="mt-3 max-w-3xl text-sm md:text-[15px]"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  High-level overview of system performance, review operations,
+                  and matching health.
+                </p>
               </div>
-            ))}
-          </div>
-        </Card>
 
-        {/* Donut chart */}
-        <Card>
-          <h2 className="font-syne text-[16px] font-bold mb-1">Status Distribution</h2>
-          <p className="text-sm mb-5" style={{ color:'var(--text-muted)' }}>Breakdown of all reviews</p>
-          <ResponsiveContainer width="100%" height={160}>
-            <PieChart>
-              <Pie data={PIE_DATA} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
-                {PIE_DATA.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
-              </Pie>
-              <Tooltip contentStyle={{ background:'#1A2B4A', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, color:'#fff', fontSize:12 }} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="flex flex-col gap-2.5 mt-2">
-            {PIE_DATA.map(({ name, value, color }) => (
-              <div key={name} className="flex items-center justify-between px-3 py-2.5 rounded-xl"
-                style={{ background:'var(--surface2)' }}>
-                <div className="flex items-center gap-2.5">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
-                  <span className="text-[13px] font-medium" style={{ color:'var(--text-dim)' }}>{name}</span>
+              <div className="flex flex-wrap items-center gap-3">
+                <div
+                  className="inline-flex rounded-xl border p-1"
+                  style={{
+                    background: 'var(--surface)',
+                    borderColor: 'var(--border)',
+                  }}
+                >
+                  {FILTER_OPTIONS.map((option) => {
+                    const active = option === range
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setRange(option)}
+                        className="rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+                        style={{
+                          background: active
+                            ? 'var(--primary-soft)'
+                            : 'transparent',
+                          color: active
+                            ? 'var(--primary)'
+                            : 'var(--text-muted)',
+                        }}
+                      >
+                        {option}
+                      </button>
+                    )
+                  })}
                 </div>
-                <span className="font-syne text-[14px] font-bold" style={{ color }}>{value}%</span>
+
+                <Link
+                  href="/review"
+                  className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors"
+                  style={{
+                    background: 'var(--nav)',
+                    color: '#fff',
+                  }}
+                >
+                  Open Review Queue
+                  <ArrowRight size={15} />
+                </Link>
               </div>
-            ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+              <StatPanel
+                title="Total Reviewed"
+                value={metrics.reviewed}
+                meta={`of ${metrics.total} candidate groups`}
+                icon={<Activity size={20} />}
+                tone="default"
+              />
+              <StatPanel
+                title="Confirmed Matches"
+                value={metrics.confirmed}
+                meta={`${
+                  metrics.total
+                    ? Math.round((metrics.confirmed / metrics.total) * 100)
+                    : 0
+                }% of all groups`}
+                icon={<CheckCircle2 size={20} />}
+                tone="success"
+              />
+              <StatPanel
+                title="Rejected Matches"
+                value={metrics.rejected}
+                meta={`${
+                  metrics.total
+                    ? Math.round((metrics.rejected / metrics.total) * 100)
+                    : 0
+                }% of all groups`}
+                icon={<XCircle size={20} />}
+                tone="danger"
+              />
+              <StatPanel
+                title="Needs Review"
+                value={metrics.pending}
+                meta="Awaiting reviewer decision"
+                icon={<Clock3 size={20} />}
+                tone="warning"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1.65fr)_420px]">
+              <div className="space-y-5">
+                <PageCard className="p-5 md:p-6">
+                  <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                      <h2 className="tw-heading text-[22px] font-bold">
+                        Model performance trends
+                      </h2>
+                      <p
+                        className="mt-1 text-sm"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        Precision and recall over time
+                      </p>
+                    </div>
+
+                    <div
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
+                      style={{
+                        background: 'var(--success-soft)',
+                        color: 'var(--success)',
+                      }}
+                    >
+                      <MoonStar size={13} />
+                      Stable improvement
+                    </div>
+                  </div>
+
+                  <div className="h-[270px] w-full md:h-[320px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={TREND_DATA}
+                        margin={{ top: 8, right: 10, left: -24, bottom: 0 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="4 4"
+                          stroke="var(--border)"
+                        />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fill: 'var(--text-soft)', fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          domain={[0.7, 1.0]}
+                          tick={{ fill: 'var(--text-soft)', fontSize: 11 }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v) => v.toFixed(2)}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 12,
+                            boxShadow: 'var(--shadow-lg)',
+                            color: 'var(--text)',
+                            fontSize: 12,
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="precision"
+                          stroke="var(--danger)"
+                          strokeWidth={2.5}
+                          dot={{ fill: 'var(--danger)', r: 4 }}
+                          name="Precision"
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="recall"
+                          stroke="var(--success)"
+                          strokeWidth={2.5}
+                          dot={{ fill: 'var(--success)', r: 4 }}
+                          name="Recall"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-5">
+                    {[
+                      { label: 'Precision', color: 'var(--danger)' },
+                      { label: 'Recall', color: 'var(--success)' },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="flex items-center gap-2 text-sm"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ background: item.color }}
+                        />
+                        {item.label}
+                      </div>
+                    ))}
+                  </div>
+                </PageCard>
+
+                <PageCard className="p-5 md:p-6">
+                  <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <h2 className="tw-heading text-[22px] font-bold">
+                        Reviewer workload
+                      </h2>
+                      <p
+                        className="mt-1 text-sm"
+                        style={{ color: 'var(--text-muted)' }}
+                      >
+                        Current assignments and daily output
+                      </p>
+                    </div>
+
+                    <div
+                      className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
+                      style={{
+                        background: 'var(--surface-soft)',
+                        color: 'var(--text-muted)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      <Users size={13} />
+                      3 active reviewers
+                    </div>
+                  </div>
+
+                  <div
+                    className="overflow-hidden rounded-xl border"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
+                    <div
+                      className="hidden grid-cols-[1.5fr_0.7fr_0.9fr_0.9fr] gap-4 border-b px-4 py-3 text-[12px] font-semibold uppercase tracking-[0.08em] lg:grid"
+                      style={{
+                        background: 'var(--surface-soft)',
+                        borderColor: 'var(--border)',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      <span>Reviewer</span>
+                      <span>Assigned</span>
+                      <span>Completed today</span>
+                      <span>Avg time</span>
+                    </div>
+
+                    <div
+                      className="divide-y"
+                      style={{ borderColor: 'var(--border)' }}
+                    >
+                      {REVIEWER_WORKLOAD.map((reviewer) => (
+                        <div
+                          key={reviewer.name}
+                          className="grid grid-cols-1 gap-2 px-4 py-4 lg:grid-cols-[1.5fr_0.7fr_0.9fr_0.9fr] lg:items-center"
+                          style={{ background: 'var(--surface)' }}
+                        >
+                          <div className="font-semibold">{reviewer.name}</div>
+                          <div
+                            className="text-sm"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            <span className="lg:hidden font-medium text-[var(--text)]">
+                              Assigned:{' '}
+                            </span>
+                            {reviewer.assigned}
+                          </div>
+                          <div
+                            className="text-sm"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            <span className="lg:hidden font-medium text-[var(--text)]">
+                              Completed today:{' '}
+                            </span>
+                            {reviewer.completedToday}
+                          </div>
+                          <div
+                            className="text-sm"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            <span className="lg:hidden font-medium text-[var(--text)]">
+                              Avg time:{' '}
+                            </span>
+                            {reviewer.avgTime}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </PageCard>
+              </div>
+
+              <div className="space-y-5">
+                <PageCard className="p-5 md:p-6">
+                  <h2 className="tw-heading text-[22px] font-bold">
+                    Review outcomes
+                  </h2>
+                  <p
+                    className="mt-1 text-sm"
+                    style={{ color: 'var(--text-muted)' }}
+                  >
+                    Breakdown of processed review decisions
+                  </p>
+
+                  <div className="mt-4 h-[220px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={56}
+                          outerRadius={82}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {pieData.map((entry) => (
+                            <Cell key={entry.name} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            background: 'var(--surface)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 12,
+                            boxShadow: 'var(--shadow-lg)',
+                            color: 'var(--text)',
+                            fontSize: 12,
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="mt-3 space-y-2.5">
+                    {pieData.map((item) => (
+                      <div
+                        key={item.name}
+                        className="flex items-center justify-between rounded-xl border px-3 py-2.5"
+                        style={{
+                          background: 'var(--surface-soft)',
+                          borderColor: 'var(--border)',
+                        }}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ background: item.color }}
+                          />
+                          <span
+                            className="text-sm font-medium"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            {item.name}
+                          </span>
+                        </div>
+                        <span
+                          className="tw-heading text-[15px] font-bold"
+                          style={{ color: item.color }}
+                        >
+                          {item.value}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </PageCard>
+
+                <PageCard className="p-5 md:p-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <AlertTriangle size={18} />
+                    <h2 className="tw-heading text-[22px] font-bold">
+                      Priority alerts
+                    </h2>
+                  </div>
+
+                  <div className="space-y-3">
+                    {ALERTS.map((alert) => {
+                      const toneStyle =
+                        alert.tone === 'warning'
+                          ? {
+                              bg: 'var(--warning-soft)',
+                              border: 'var(--warning)',
+                            }
+                          : alert.tone === 'success'
+                            ? {
+                                bg: 'var(--success-soft)',
+                                border: 'var(--success)',
+                              }
+                            : {
+                                bg: 'var(--surface-soft)',
+                                border: 'var(--border)',
+                              }
+
+                      return (
+                        <div
+                          key={alert.title}
+                          className="rounded-xl border p-4"
+                          style={{
+                            background: toneStyle.bg,
+                            borderColor: toneStyle.border,
+                          }}
+                        >
+                          <h3 className="text-sm font-semibold">
+                            {alert.title}
+                          </h3>
+                          <p
+                            className="mt-1 text-sm leading-6"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            {alert.description}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </PageCard>
+
+                <PageCard className="p-5 md:p-6">
+                  <h2 className="tw-heading text-[22px] font-bold">
+                    Quick actions
+                  </h2>
+
+                  <div className="mt-4 space-y-3">
+                    {[
+                      {
+                        label: 'Open pending reviews',
+                        sub: 'Resolve records awaiting review',
+                        href: '/review',
+                      },
+                      {
+                        label: 'View analytics',
+                        sub: 'Inspect model and reviewer performance',
+                        href: '/analytics',
+                      },
+                      {
+                        label: 'Manage users and settings',
+                        sub: 'Permissions, thresholds, and activity',
+                        href: '/management',
+                      },
+                    ].map((item) => (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        className="flex items-center justify-between rounded-xl border px-4 py-3.5 transition-colors"
+                        style={{
+                          background: 'var(--surface-soft)',
+                          borderColor: 'var(--border)',
+                        }}
+                      >
+                        <div>
+                          <div className="text-sm font-semibold">
+                            {item.label}
+                          </div>
+                          <div
+                            className="mt-1 text-xs"
+                            style={{ color: 'var(--text-muted)' }}
+                          >
+                            {item.sub}
+                          </div>
+                        </div>
+                        <ChevronRight
+                          size={16}
+                          style={{ color: 'var(--text-muted)' }}
+                        />
+                      </Link>
+                    ))}
+                  </div>
+                </PageCard>
+              </div>
+            </div>
           </div>
-        </Card>
+        </div>
       </div>
-    </div>
+    </AppShell>
   )
 }
