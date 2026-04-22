@@ -26,39 +26,12 @@ import {
 
 const DISPLAY_FIELDS = [
   'name',
-  'client_name',
-  'client_name_primary',
-  'anchor_name',
-  'reg_no',
   'country',
   'address',
   'sector',
   'entity_type',
-  'record_family',
-  'record_subtype',
-  'observed_at',
+  'reg_no',
 ] as const
-
-type ProjectPreview = {
-  id?: string
-  source_system?: string
-  source_id?: string
-  project_name?: string
-  project_title?: string
-  project_state?: string
-  project_start_date?: string
-  project_end_date?: string
-  company?: string
-  source_hint?: string
-  project_code?: string
-  owner_name?: string
-  description?: string
-  source_description?: string
-}
-
-type MatchCandidateGroupWithProjects = MatchCandidateGroup & {
-  projects?: ProjectPreview[]
-}
 
 const fadeUp = {
   hidden: { opacity: 0, y: 18 },
@@ -174,6 +147,19 @@ function formatDate(value?: string) {
 
 function getSourceLabel(record: SourceRecord) {
   return record.source_system || record.source || 'manual'
+}
+
+function getFieldLabel(field: string) {
+  const map: Record<string, string> = {
+    name: 'Name',
+    country: 'Country',
+    address: 'Address',
+    sector: 'Sector',
+    entity_type: 'Field',
+    reg_no: 'Reg number',
+  }
+
+  return map[field] || field.replace(/_/g, ' ')
 }
 
 function getRecordField(record: SourceRecord, field: string): string {
@@ -324,112 +310,10 @@ function getGroupCompanyTitle(group: MatchCandidateGroup | null) {
   return 'Unnamed company'
 }
 
-function withPreviewProjects(groups: MatchCandidateGroup[]): MatchCandidateGroupWithProjects[] {
-  return groups.map((group) => {
-    if (group.id === 'GRP-1001') {
-      return {
-        ...group,
-        projects: [
-          {
-            id: 'proj-1001-a',
-            source_system: 'Smartsheet',
-            source_id: '1301006',
-            project_name: 'E1 & IP UX study',
-            project_title: 'E1 & IP UX study',
-            project_state: 'Confirmed',
-            project_start_date: '2016-12-18',
-            project_end_date: '2017-01-31',
-            company: 'Mascus',
-            project_code: '',
-            owner_name: '',
-            description: 'UX study project context linked from Smartsheet preview data.',
-          },
-        ],
-      }
-    }
-
-    if (group.id === 'GRP-1002') {
-      return {
-        ...group,
-        projects: [
-          {
-            id: 'proj-1002-a',
-            source_system: 'Smartsheet',
-            source_id: '1300889',
-            project_name: 'Tallink: Smart Port',
-            project_title: 'Tallink: Smart Port',
-            project_state: 'Confirmed',
-            project_start_date: '2017-01-01',
-            project_end_date: '2017-12-31',
-            company: 'Tallink',
-            project_code: '39',
-            owner_name: '',
-            description: 'Frontend preview of a Tallink project grouped under one entity.',
-          },
-          {
-            id: 'proj-1002-b',
-            source_system: 'Smartsheet',
-            source_id: '1300887',
-            project_name: 'Tallink: Shopping',
-            project_title: 'Tallink: Shopping',
-            project_state: 'Confirmed',
-            project_start_date: '2017-01-01',
-            project_end_date: '2017-12-31',
-            company: 'Tallink',
-            project_code: '38',
-            owner_name: '',
-            description: 'Second project shown to test multi-project grouping on the frontend.',
-          },
-        ],
-      }
-    }
-
-    if (group.id === 'GRP-1003') {
-      return {
-        ...group,
-        projects: [
-          {
-            id: 'proj-1003-a',
-            source_system: 'Smartsheet',
-            source_id: '1300949',
-            project_name: 'QLAARA: arenduse nõustamine',
-            project_title: 'QLAARA: arenduse nõustamine',
-            project_state: 'Confirmed',
-            project_start_date: '2017-01-01',
-            project_end_date: '2017-12-31',
-            company: 'Qlaara',
-            project_code: '43',
-            owner_name: '',
-            description: 'Preview card to validate project context placement in the review flow.',
-          },
-          {
-            id: 'proj-1003-b',
-            source_system: 'Smartsheet',
-            source_id: '1300868',
-            project_name: 'QLAARA: arendus',
-            project_title: 'QLAARA: arendus',
-            project_state: 'Confirmed',
-            project_start_date: '2017-01-01',
-            project_end_date: '2017-12-31',
-            company: 'Qlaara',
-            project_code: '19',
-            owner_name: '',
-            description: '',
-          },
-        ],
-      }
-    }
-
-    return { ...group, projects: [] }
-  })
-}
-
 export default function ReviewPage() {
   const { user, isLoading, can } = useAuth()
 
-  const [groups, setGroups] = useState<MatchCandidateGroupWithProjects[]>(
-    withPreviewProjects(MATCH_GROUPS)
-  )
+  const [groups, setGroups] = useState(MATCH_GROUPS)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [showExplainableAI, setShowExplainableAI] = useState(false)
   const [showRejectModal, setShowRejectModal] = useState(false)
@@ -437,7 +321,11 @@ export default function ReviewPage() {
 
   const [selectedReason, setSelectedReason] = useState('')
   const [goldenOverrides, setGoldenOverrides] = useState<Record<string, string>>({})
-  const [toast, setToast] = useState<{ msg: string; color: string } | null>(null)
+  const [toast, setToast] = useState<{
+    msg: string
+    color: string
+    icon?: 'success' | 'error'
+  } | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
   const canConfirm = can('action:confirm')
@@ -461,6 +349,8 @@ export default function ReviewPage() {
             project.project_code,
             project.project_state,
             project.description,
+            project.owner_name,
+            project.owner_email,
           ]
             .filter(Boolean)
             .join(' ')
@@ -474,17 +364,10 @@ export default function ReviewPage() {
           record.source_id,
           record.entity_type,
           record.name,
-          record.anchor_name,
-          record.client_name,
-          record.client_name_primary,
           record.country,
           record.address,
           record.sector,
           record.reg_no,
-          record.record_family,
-          record.record_subtype,
-          getRecordField(record, 'phone'),
-          getRecordField(record, 'email'),
         ]
           .filter(Boolean)
           .join(' ')
@@ -522,10 +405,13 @@ export default function ReviewPage() {
   const pendingCount = suggestedCandidates.length
   const progress = totalRecords > 0 ? (reviewedCount / totalRecords) * 100 : 0
 
-  const showToast = useCallback((msg: string, color: string) => {
-    setToast({ msg, color })
-    setTimeout(() => setToast(null), 2400)
-  }, [])
+  const showToast = useCallback(
+    (msg: string, color: string, icon?: 'success' | 'error') => {
+      setToast({ msg, color, icon })
+      setTimeout(() => setToast(null), 2400)
+    },
+    []
+  )
 
   const handleNext = useCallback(() => {
     if (suggestedCandidates.length > 0) {
@@ -543,7 +429,7 @@ export default function ReviewPage() {
     )
     setShowRejectModal(false)
     setSelectedReason('')
-    showToast(`Group ${currentGroup.id} rejected`, 'var(--danger)')
+    showToast(`Match ${currentGroup.id} rejected`, 'var(--danger)', 'error')
   }, [currentGroup, selectedReason, canReject, showToast])
 
   const handleConfirm = useCallback(() => {
@@ -558,7 +444,11 @@ export default function ReviewPage() {
     )
     setShowConfirmModal(false)
     setGoldenOverrides({})
-    showToast(`Group ${currentGroup.id} confirmed`, 'var(--success)')
+    showToast(
+      `Match ${currentGroup.id} confirmed successfully`,
+      'var(--success)',
+      'success'
+    )
   }, [currentGroup, goldenOverrides, canConfirm, showToast])
 
   useEffect(() => {
@@ -723,7 +613,7 @@ export default function ReviewPage() {
                       setSearchTerm(e.target.value)
                       setCurrentIndex(0)
                     }}
-                    placeholder="Search by group id, source system, company name, project name, reg no, address, sector..."
+                    placeholder="Search by group id, company, project, reg no, country, address, owner..."
                     className="w-full rounded-xl border py-3 pl-10 pr-4 text-sm outline-none"
                     style={{
                       background: 'var(--surface-soft)',
@@ -1040,7 +930,7 @@ export default function ReviewPage() {
                                           className="text-[10px] font-semibold uppercase tracking-[0.08em]"
                                           style={{ color: 'var(--text-muted)' }}
                                         >
-                                          {field.replace(/_/g, ' ')}
+                                          {getFieldLabel(field)}
                                         </span>
                                       </div>
                                       <div
@@ -1173,6 +1063,13 @@ export default function ReviewPage() {
                                         Owner:{' '}
                                       </span>
                                       <span>{project.owner_name || '—'}</span>
+                                    </div>
+
+                                    <div>
+                                      <span style={{ color: 'var(--text-muted)' }}>
+                                        Owner email:{' '}
+                                      </span>
+                                      <span>{project.owner_email || '—'}</span>
                                     </div>
 
                                     <div>
@@ -1710,8 +1607,8 @@ export default function ReviewPage() {
                             transition={{ duration: 0.18 }}
                           >
                             <div className="mb-2 flex items-center gap-2">
-                              <span className="text-sm font-bold capitalize">
-                                {field.replace(/_/g, ' ')}
+                              <span className="text-sm font-bold">
+                                {getFieldLabel(field)}
                               </span>
                               <span
                                 className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase"
@@ -1824,13 +1721,40 @@ export default function ReviewPage() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.96 }}
               transition={{ duration: 0.2 }}
-              className="fixed bottom-8 right-8 z-[80] rounded-xl px-5 py-3 text-[14px] font-semibold text-white"
+              className="fixed bottom-8 right-8 z-[80] min-w-[280px] rounded-2xl border px-4 py-3 text-sm font-semibold"
               style={{
-                background: toast.color,
+                background: 'var(--surface)',
+                borderColor: toast.color,
+                color: 'var(--text)',
                 boxShadow: '0 10px 28px rgba(0,0,0,0.22)',
               }}
             >
-              {toast.msg}
+              <div className="flex items-center gap-3">
+                <div
+                  className="flex h-9 w-9 items-center justify-center rounded-xl"
+                  style={{
+                    background:
+                      toast.icon === 'success'
+                        ? 'var(--success-soft)'
+                        : 'var(--danger-soft)',
+                    color:
+                      toast.icon === 'success'
+                        ? 'var(--success)'
+                        : 'var(--danger)',
+                  }}
+                >
+                  {toast.icon === 'success' ? <Check size={16} /> : <X size={16} />}
+                </div>
+
+                <div className="min-w-0">
+                  <div className="text-sm font-bold">
+                    {toast.icon === 'success' ? 'Confirmed' : 'Rejected'}
+                  </div>
+                  <div className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {toast.msg}
+                  </div>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

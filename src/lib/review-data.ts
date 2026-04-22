@@ -65,7 +65,25 @@ export const ACTIVITY_LOG = [
   },
 ]
 
-export const MATCH_GROUPS: MatchCandidateGroup[] = [
+export const MATCH_GROUPS: (MatchCandidateGroup & {
+  projects?: {
+    id?: string
+    source_system?: string
+    source_id?: string
+    project_name?: string
+    project_title?: string
+    project_state?: string
+    project_start_date?: string
+    project_end_date?: string
+    company?: string
+    source_hint?: string
+    project_code?: string
+    owner_name?: string
+    owner_email?: string
+    description?: string
+    source_description?: string
+  }[]
+})[] = [
   {
     id: 'GRP-1001',
     confidence: 0.93,
@@ -84,7 +102,7 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
         source_id: 'REG-001',
         entity_type: 'company',
         name: 'Trinidad Wiseman OÜ',
-        observed_at: '2026-03-20T09:30:00Z',
+        // observed_at: '2026-03-20T09:30:00Z',
         raw_payload_json: {
           registry_status: 'active',
           source_confidence: 0.98,
@@ -109,7 +127,7 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
         source_id: 'CRM-2188',
         entity_type: 'company',
         name: 'Trinidad Wiseman OU',
-        observed_at: '2026-03-19T16:10:00Z',
+        // observed_at: '2026-03-19T16:10:00Z',
         raw_payload_json: {
           account_owner: 'Marcus Voss',
           lifecycle_stage: 'customer',
@@ -134,7 +152,7 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
         source_id: 'WEB-882',
         entity_type: 'company',
         name: 'Trinidad Wiseman',
-        observed_at: '2026-03-18T12:00:00Z',
+        // observed_at: '2026-03-18T12:00:00Z',
         raw_payload_json: {
           page_type: 'contact_page',
         },
@@ -150,6 +168,23 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
         field_values: {
           email: 'info@trinidadwiseman.ee',
         },
+      },
+    ],
+    projects: [
+      {
+        id: 'proj-1001-a',
+        source_system: 'Smartsheet',
+        source_id: '1301006',
+        project_name: 'E1 & IP UX study',
+        project_title: 'E1 & IP UX study',
+        project_state: 'Confirmed',
+        project_start_date: '2016-12-18',
+        project_end_date: '2017-01-31',
+        company: 'Mascus',
+        project_code: '',
+        owner_name: 'Kadi Saar',
+        owner_email: 'kadi.saar@mascus.example',
+        description: 'UX study project context linked from Smartsheet preview data.',
       },
     ],
   },
@@ -171,7 +206,7 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
         source_id: 'ERP-771',
         entity_type: 'company',
         name: 'Eco Match BV',
-        observed_at: '2026-03-21T10:15:00Z',
+        // observed_at: '2026-03-21T10:15:00Z',
         raw_payload_json: {
           supplier_status: 'active',
         },
@@ -195,7 +230,7 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
         source_id: 'CRM-992',
         entity_type: 'company',
         name: 'EcoMatch B.V.',
-        observed_at: '2026-03-20T14:00:00Z',
+        // observed_at: '2026-03-20T14:00:00Z',
         raw_payload_json: {
           lifecycle_stage: 'lead',
         },
@@ -212,6 +247,38 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
           phone: '+31 10 111 9999',
           email: 'hello@ecomatch.nl',
         },
+      },
+    ],
+    projects: [
+      {
+        id: 'proj-1002-a',
+        source_system: 'Smartsheet',
+        source_id: '1300889',
+        project_name: 'Tallink: Smart Port',
+        project_title: 'Tallink: Smart Port',
+        project_state: 'Confirmed',
+        project_start_date: '2017-01-01',
+        project_end_date: '2017-12-31',
+        company: 'Tallink',
+        project_code: '39',
+        owner_name: 'Mari Tamm',
+        owner_email: 'mari.tamm@tallink.example',
+        description: 'Frontend preview of a Tallink project grouped under one entity.',
+      },
+      {
+        id: 'proj-1002-b',
+        source_system: 'Smartsheet',
+        source_id: '1300887',
+        project_name: 'Tallink: Shopping',
+        project_title: 'Tallink: Shopping',
+        project_state: 'Confirmed',
+        project_start_date: '2017-01-01',
+        project_end_date: '2017-12-31',
+        company: 'Tallink',
+        project_code: '38',
+        owner_name: 'Rasmus Hein',
+        owner_email: 'rasmus.hein@tallink.example',
+        description: 'Second project shown to test multi-project grouping on the frontend.',
       },
     ],
   },
@@ -233,7 +300,7 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
         source_id: 'REG-551',
         entity_type: 'company',
         name: 'Northern Grid AS',
-        observed_at: '2026-03-22T09:00:00Z',
+        // observed_at: '2026-03-22T09:00:00Z',
         raw_payload_json: {
           registry_status: 'active',
         },
@@ -257,7 +324,7 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
         source_id: 'CRM-552',
         entity_type: 'company',
         name: 'Northern Grid Solutions',
-        observed_at: '2026-03-22T12:30:00Z',
+        // observed_at: '2026-03-22T12:30:00Z',
         raw_payload_json: {
           lifecycle_stage: 'opportunity',
         },
@@ -274,6 +341,38 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
           phone: '+372 700 5678',
           email: 'sales@ngsolutions.ee',
         },
+      },
+    ],
+    projects: [
+      {
+        id: 'proj-1003-a',
+        source_system: 'Smartsheet',
+        source_id: '1300949',
+        project_name: 'QLAARA: arenduse nõustamine',
+        project_title: 'QLAARA: arenduse nõustamine',
+        project_state: 'Confirmed',
+        project_start_date: '2017-01-01',
+        project_end_date: '2017-12-31',
+        company: 'Qlaara',
+        project_code: '43',
+        owner_name: 'Anna Kask',
+        owner_email: 'anna.kask@qlaara.example',
+        description: 'Preview card to validate project context placement in the review flow.',
+      },
+      {
+        id: 'proj-1003-b',
+        source_system: 'Smartsheet',
+        source_id: '1300868',
+        project_name: 'QLAARA: arendus',
+        project_title: 'QLAARA: arendus',
+        project_state: 'Confirmed',
+        project_start_date: '2017-01-01',
+        project_end_date: '2017-12-31',
+        company: 'Qlaara',
+        project_code: '19',
+        owner_name: 'Karl Oja',
+        owner_email: 'karl.oja@qlaara.example',
+        description: '',
       },
     ],
   },
@@ -294,7 +393,7 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
         source_id: 'REG-700',
         entity_type: 'company',
         name: 'Bluewave Systems OÜ',
-        observed_at: '2026-03-16T10:00:00Z',
+        // observed_at: '2026-03-16T10:00:00Z',
         raw_payload_json: { registry_status: 'active' },
         record_subtype: 'legal_entity',
         record_family: 'organization',
@@ -316,7 +415,7 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
         source_id: 'CRM-701',
         entity_type: 'company',
         name: 'Bluewave Systems OÜ',
-        observed_at: '2026-03-16T11:00:00Z',
+        // observed_at: '2026-03-16T11:00:00Z',
         raw_payload_json: { lifecycle_stage: 'customer' },
         record_subtype: 'client_account',
         record_family: 'organization',
@@ -331,6 +430,23 @@ export const MATCH_GROUPS: MatchCandidateGroup[] = [
           phone: '+372 611 2233',
           email: 'hello@bluewave.ee',
         },
+      },
+    ],
+    projects: [
+      {
+        id: 'proj-1004-a',
+        source_system: 'Smartsheet',
+        source_id: '1300933',
+        project_name: 'mWallet',
+        project_title: 'mWallet',
+        project_state: 'Confirmed',
+        project_start_date: '2017-01-01',
+        project_end_date: '2017-03-31',
+        company: 'Kaubamaja',
+        project_code: '27',
+        owner_name: 'Liina Vaher',
+        owner_email: 'liina.vaher@kaubamaja.example',
+        description: 'Confirmed project preview for a fully resolved company group.',
       },
     ],
   },
