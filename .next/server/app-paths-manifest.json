@@ -1,7 +1,6 @@
 {
-  "/analytics/page": "app/analytics/page.js",
-  "/management/page": "app/management/page.js",
   "/login/page": "app/login/page.js",
   "/review/page": "app/review/page.js",
+  "/analytics/page": "app/analytics/page.js",
   "/admin/page": "app/admin/page.js"
 }

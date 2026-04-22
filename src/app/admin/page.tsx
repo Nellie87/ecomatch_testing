@@ -665,55 +665,7 @@ export default function AdminPage() {
                   </div>
                 </PageCard>
 
-                <PageCard className="p-5 md:p-6">
-                  <div className="mb-4 flex items-center gap-2">
-                    <AlertTriangle size={18} />
-                    <h2 className="tw-heading text-[22px] font-bold">
-                      Priority alerts
-                    </h2>
-                  </div>
-
-                  <div className="space-y-3">
-                    {ALERTS.map((alert) => {
-                      const toneStyle =
-                        alert.tone === 'warning'
-                          ? {
-                              bg: 'var(--warning-soft)',
-                              border: 'var(--warning)',
-                            }
-                          : alert.tone === 'success'
-                            ? {
-                                bg: 'var(--success-soft)',
-                                border: 'var(--success)',
-                              }
-                            : {
-                                bg: 'var(--surface-soft)',
-                                border: 'var(--border)',
-                              }
-
-                      return (
-                        <div
-                          key={alert.title}
-                          className="rounded-xl border p-4"
-                          style={{
-                            background: toneStyle.bg,
-                            borderColor: toneStyle.border,
-                          }}
-                        >
-                          <h3 className="text-sm font-semibold">
-                            {alert.title}
-                          </h3>
-                          <p
-                            className="mt-1 text-sm leading-6"
-                            style={{ color: 'var(--text-muted)' }}
-                          >
-                            {alert.description}
-                          </p>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </PageCard>
+                
 
                 <PageCard className="p-5 md:p-6">
                   <h2 className="tw-heading text-[22px] font-bold">
